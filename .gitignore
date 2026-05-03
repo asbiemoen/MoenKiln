@@ -1,0 +1,21 @@
+# Secrets – aldri commit
+firmware/moen_kiln/config_secrets.h
+
+# Claude Code – ikke i git
+CLAUDE.md
+.claude/
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Arduino build-output
+build/
+*.elf
+*.hex
+*.bin
+*.map
+
+# Editor
+.vscode/
+*.swp
