@@ -105,9 +105,10 @@ void setup() {
   // matrixBegin() wakes the ESP32-S3; call it before Serial.begin() so
   // boot bytes are discarded rather than forwarded to the Serial Monitor
   matrixBegin();
-  delay(1000);
+  delay(1500);
 
   Serial.begin(115200);
+  Serial.println();
 
   pinMode(LEDR, OUTPUT); digitalWrite(LEDR, HIGH);  // aktiv lav – start av
   pinMode(LEDG, OUTPUT); digitalWrite(LEDG, HIGH);
