@@ -979,13 +979,8 @@ void handleHTTP() {
       int idx = 0;
       int eq = body.indexOf('=');
       if (eq >= 0) idx = constrain(body.substring(eq + 1).toInt(), 0, PROFILE_COUNT - 1);
-      bool toohot = (strcmp(PROFILES[idx].id, "configtest") == 0 && currentTemp > 40.0f);
-      if (toohot) {
-        httpOK(client, "application/json"); client.print(F("{\"ok\":false,\"error\":\"too hot\"}"));
-      } else {
-        startProfile(&PROFILES[idx]);
-        httpOK(client, "application/json"); client.print(F("{\"ok\":true}"));
-      }
+      startProfile(&PROFILES[idx]);
+      httpOK(client, "application/json"); client.print(F("{\"ok\":true}"));
     }
 
   } else if (req.startsWith("POST /api/relay")) {
@@ -1097,12 +1092,6 @@ void handleSerial() {
 }
 
 void startProfile(const Profile* p) {
-  if (strcmp(p->id, "configtest") == 0 && currentTemp > 40.0f) {
-    Serial.print(F("ConfigTest refused: kiln too hot ("));
-    Serial.print(currentTemp, 0);
-    Serial.println(F(" C) – must be at room temperature"));
-    return;
-  }
   logHead = 0; logCount = 0; lastLogMs = 0;
   fullLogHead = 0; fullLogCount = 0; lastFullLogMs = 0;
   eventCount = 0;
