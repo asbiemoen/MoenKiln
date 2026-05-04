@@ -194,11 +194,12 @@ void readTemp() {
   double t = tc.readCelsius();
   if (isnan(t)) {
     sensorErrCount++;
+    Serial.print(F("TC: bad read ")); Serial.print(sensorErrCount); Serial.println(F("/3"));
+    if (kilnState == RAMPING || kilnState == HOLDING || kilnState == FREE_COOL)
+      forceLogPoint();
     if (sensorErrCount >= 3) {
       sensorMissing = true;
       if (kilnState != IDLE) triggerAlarm(F("Thermocouple error"));
-    } else {
-      Serial.print(F("TC: bad read ")); Serial.print(sensorErrCount); Serial.println(F("/3"));
     }
     return;
   }
@@ -480,25 +481,37 @@ void writeFullLogPoint(unsigned long now) {
   EEPROM.update(EEPROM_PLOG_FLAG, 0x44);
 }
 
+void writeDetailLogPoint(unsigned long now) {
+  uint16_t idx = logHead % LOG_SIZE;
+  DataPoint& dp = logBuf[idx];
+  dp.sec    = (uint16_t)min((now - firingStartMs) / 1000UL, 65535UL);
+  dp.temp   = (uint16_t)(currentTemp + 0.5f);
+  dp.sp     = (uint16_t)(setpoint + 0.5f);
+  dp.pid    = (uint8_t)constrain((int)(pidOutput + 0.5f), 0, 100);
+  dp.segIdx = (uint8_t)((digitalRead(PIN_RELAY) ? 0x80 : 0) | (segIdx & 0x7F));
+  logHead++;
+  if (logCount < LOG_SIZE) logCount++;
+}
+
+// Tvungen umiddelbar logging til begge buffere – brukes ved TC-feil
+void forceLogPoint() {
+  if (firingStartMs == 0) return;
+  unsigned long now = millis();
+  writeDetailLogPoint(now);
+  writeFullLogPoint(now);
+  lastLogMs     = now;   // reset intervall så neste normale punkt ikke dobler
+  lastFullLogMs = now;
+}
+
 void logData() {
   if (kilnState != RAMPING && kilnState != HOLDING && kilnState != FREE_COOL) return;
   unsigned long now = millis();
 
-  // Detaljlogg: 15 sek, RAM-buffer (siste 2 timer)
   if (now - lastLogMs >= LOG_INTERVAL_MS) {
     lastLogMs = now;
-    uint16_t idx = logHead % LOG_SIZE;
-    DataPoint& dp = logBuf[idx];
-    dp.sec    = (uint16_t)min((now - firingStartMs) / 1000UL, 65535UL);
-    dp.temp   = (uint16_t)(currentTemp + 0.5f);
-    dp.sp     = (uint16_t)(setpoint + 0.5f);
-    dp.pid    = (uint8_t)constrain((int)(pidOutput + 0.5f), 0, 100);
-    dp.segIdx = (uint8_t)((digitalRead(PIN_RELAY) ? 0x80 : 0) | (segIdx & 0x7F));
-    logHead++;
-    if (logCount < LOG_SIZE) logCount++;
+    writeDetailLogPoint(now);
   }
 
-  // Fulllogg: 5 min, RAM + EEPROM (hele brenningen)
   if (now - lastFullLogMs >= FULL_LOG_INTERVAL_MS) {
     lastFullLogMs = now;
     writeFullLogPoint(now);
