@@ -32,7 +32,7 @@ static const Segment SEG_BISQUE[] = {
 
 // ── Config test: max speed to 1220 °C, then free cool to room temp ────────────
 static const Segment SEG_CONFIGTEST[] = {
-  { "Ramp Up",   1220, 9999, 0 },
+  { "Ramp Up",    800, 9999, 0 },
   { "Free Cool",   25,    0, 0 },
 };
 
