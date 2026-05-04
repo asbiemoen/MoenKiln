@@ -634,7 +634,7 @@ void checkStartButton() {
     matrixClear();  // tøm skjermen umiddelbart ved ethvert trykk
 
     if (kilnState == IDLE) {
-      Serial.println(F("Button: pressed (hold 1s=Glaze, 5s=Bisque)"));
+      Serial.println(F("Button: pressed (hold 2s=Glaze, 10s=ConfigTest)"));
       showingIP = false;
     } else if (kilnState == RAMPING || kilnState == HOLDING || kilnState == FREE_COOL) {
       displayScreen = (displayScreen + 1) % 4;
@@ -643,19 +643,18 @@ void checkStartButton() {
     }
   }
 
-  // Hold i IDLE: 1 s = Glaze klar, 5 s = Bisque
+  // Hold i IDLE: 2 s = Glaze klar, 10 s = Config Test
   if (holdStart > 0 && kilnState == IDLE) {
     unsigned long held = now - holdStart;
     cancelHeld = true;
-    drawCancelCountdown(min(1.0f, (float)held / 5000.0f));
-    if (!glazeArmed && held >= 1000) {
+    drawCancelCountdown(min(1.0f, (float)held / 10000.0f));
+    if (!glazeArmed && held >= 2000) {
       glazeArmed = true;
-
     }
-    if (held >= 5000) {
+    if (held >= 10000) {
       cancelHeld = false; glazeArmed = false; holdStart = 0;
       showingIP = false;
-      if (!sensorMissing) startProfile(&PROFILES[1]);  // Bisque
+      if (!sensorMissing) startProfile(&PROFILES[2]);  // Config Test
     }
   }
 
