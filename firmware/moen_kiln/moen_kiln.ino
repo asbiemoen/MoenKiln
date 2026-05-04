@@ -94,7 +94,8 @@ uint8_t firingId         = 0;    // økes ved ny brenning – brukes av GUI til 
 bool    cancelHeld       = false; // startknapp holdes inne under brenning
 unsigned long stoppedMs  = 0;    // tidsstempel for "stanset"-bekreftelse på display
 bool    sensorMissing    = false; // MAX31855 ikke tilkoblet eller feiler
-unsigned long testTimeoutMs = 0; // non-zero under Config Test: fires at firingStartMs + 4 h
+unsigned long testTimeoutMs  = 0; // non-zero under Config Test: fires at firingStartMs + 4 h
+unsigned long lastWifiRetryMs = 0; // last time we attempted a reconnect
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -161,6 +162,7 @@ void loop() {
     showingIP = false;
   }
   handleSerial();
+  maybeReconnectWiFi();
   handleHTTP();
   checkStartButton();
 
@@ -634,7 +636,7 @@ void checkStartButton() {
     matrixClear();  // tøm skjermen umiddelbart ved ethvert trykk
 
     if (kilnState == IDLE) {
-      Serial.println(F("Button: pressed (hold 2s=Glaze, 10s=ConfigTest)"));
+      Serial.println(F("Button: pressed (hold 2s=Glaze, 5s=ConfigTest)"));
       showingIP = false;
     } else if (kilnState == RAMPING || kilnState == HOLDING || kilnState == FREE_COOL) {
       displayScreen = (displayScreen + 1) % 4;
@@ -643,15 +645,15 @@ void checkStartButton() {
     }
   }
 
-  // Hold i IDLE: 2 s = Glaze klar, 10 s = Config Test
+  // Hold i IDLE: 2 s = Glaze klar, 5 s = Config Test
   if (holdStart > 0 && kilnState == IDLE) {
     unsigned long held = now - holdStart;
     cancelHeld = true;
-    drawCancelCountdown(min(1.0f, (float)held / 10000.0f));
+    drawCancelCountdown(min(1.0f, (float)held / 5000.0f));
     if (!glazeArmed && held >= 2000) {
       glazeArmed = true;
     }
-    if (held >= 10000) {
+    if (held >= 5000) {
       cancelHeld = false; glazeArmed = false; holdStart = 0;
       showingIP = false;
       if (!sensorMissing) startProfile(&PROFILES[2]);  // Config Test
@@ -781,6 +783,28 @@ void setupWiFi() {
   } else {
     Serial.println(F("WiFi failed"));
   }
+}
+
+// ── WiFi reconnect (prøver hvert 60 sek hvis tilkoblingen er borte) ───────────
+void maybeReconnectWiFi() {
+  if (WiFi.status() == WL_CONNECTED) return;
+  unsigned long now = millis();
+  if (now - lastWifiRetryMs < 60000UL) return;
+  lastWifiRetryMs = now;
+  Serial.println(F("WiFi: lost – reconnecting..."));
+  const char* ssids[]  = { WIFI_SSID,  WIFI_SSID2,  WIFI_SSID3  };
+  const char* passes[] = { WIFI_PASSWORD, WIFI_PASSWORD2, WIFI_PASSWORD3 };
+  for (uint8_t i = 0; i < 3; i++) {
+    WiFi.begin(ssids[i], passes[i]);
+    for (int j = 0; j < 10 && WiFi.status() != WL_CONNECTED; j++) delay(500);
+    if (WiFi.status() == WL_CONNECTED) {
+      if (!serverReady) { httpServer.begin(); serverReady = true; }
+      Serial.print(F("WiFi: reconnected – IP ")); Serial.println(WiFi.localIP());
+      loadAndSendPendingReport();
+      return;
+    }
+  }
+  Serial.println(F("WiFi: reconnect failed"));
 }
 
 // ── HTTP server ───────────────────────────────────────────────────────────────
