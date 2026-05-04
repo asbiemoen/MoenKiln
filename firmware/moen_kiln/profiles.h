@@ -30,9 +30,16 @@ static const Segment SEG_BISQUE[] = {
   { "Bisque 2", 995,  150, 15 },
 };
 
+// ── Config test: max speed to 1220 °C, then free cool to room temp ────────────
+static const Segment SEG_CONFIGTEST[] = {
+  { "Ramp Up",   1220, 9999, 0 },
+  { "Free Cool",   25,    0, 0 },
+};
+
 static const Profile PROFILES[] = {
-  { "glaze",  "Glaze",  5, SEG_GLAZE  },
-  { "bisque", "Bisque", 2, SEG_BISQUE },
+  { "glaze",      "Glaze",       5, SEG_GLAZE      },
+  { "bisque",     "Bisque",      2, SEG_BISQUE      },
+  { "configtest", "Config Test", 2, SEG_CONFIGTEST  },
 };
 
 #define PROFILE_COUNT (sizeof(PROFILES) / sizeof(PROFILES[0]))

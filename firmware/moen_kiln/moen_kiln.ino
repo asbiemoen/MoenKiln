@@ -94,6 +94,7 @@ uint8_t firingId         = 0;    // økes ved ny brenning – brukes av GUI til 
 bool    cancelHeld       = false; // startknapp holdes inne under brenning
 unsigned long stoppedMs  = 0;    // tidsstempel for "stanset"-bekreftelse på display
 bool    sensorMissing    = false; // MAX31855 ikke tilkoblet eller feiler
+unsigned long testTimeoutMs = 0; // non-zero under Config Test: fires at firingStartMs + 4 h
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -108,17 +109,20 @@ void setup() {
   delay(1500);
 
   Serial.begin(115200);
-  Serial.println();
+  Serial.println(F("DBG1"));
 
   pinMode(LEDR, OUTPUT); digitalWrite(LEDR, HIGH);  // aktiv lav – start av
   pinMode(LEDG, OUTPUT); digitalWrite(LEDG, HIGH);
   pinMode(LEDB, OUTPUT); digitalWrite(LEDB, HIGH);
+  Serial.println(F("DBG2"));
 
   pinMode(PIN_ESTOP, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(PIN_ESTOP), onEstop, FALLING);
+  Serial.println(F("DBG3"));
 
   pinMode(PIN_BTN_START, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(PIN_BTN_START), onBtnStart, FALLING);
+  Serial.println(F("DBG4"));
 
   Serial.println(F("=== Moen Kiln ==="));
   Serial.print(F("Pins: relay=")); Serial.print(PIN_RELAY);
@@ -196,6 +200,15 @@ void readTemp() {
 
 // ── Hoved-tick ────────────────────────────────────────────────────────────────
 void tick() {
+  if (testTimeoutMs > 0 && millis() >= testTimeoutMs &&
+      (kilnState == RAMPING || kilnState == HOLDING || kilnState == FREE_COOL)) {
+    testTimeoutMs = 0;
+    Serial.println(F("=== CONFIG TEST: 4h timeout – sending report ==="));
+    logEvent(EV_FERDIG);
+    kilnState = COMPLETE; pidOutput = 0;
+    maybeSendReport();
+    return;
+  }
   switch (kilnState) {
     case RAMPING:   tickRamping();  break;
     case HOLDING:   tickHolding();  break;
@@ -943,8 +956,13 @@ void handleHTTP() {
       int idx = 0;
       int eq = body.indexOf('=');
       if (eq >= 0) idx = constrain(body.substring(eq + 1).toInt(), 0, PROFILE_COUNT - 1);
-      startProfile(&PROFILES[idx]);
-      httpOK(client, "application/json"); client.print(F("{\"ok\":true}"));
+      bool toohot = (strcmp(PROFILES[idx].id, "configtest") == 0 && currentTemp > 40.0f);
+      if (toohot) {
+        httpOK(client, "application/json"); client.print(F("{\"ok\":false,\"error\":\"too hot\"}"));
+      } else {
+        startProfile(&PROFILES[idx]);
+        httpOK(client, "application/json"); client.print(F("{\"ok\":true}"));
+      }
     }
 
   } else if (req.startsWith("POST /api/relay")) {
@@ -1056,11 +1074,18 @@ void handleSerial() {
 }
 
 void startProfile(const Profile* p) {
+  if (strcmp(p->id, "configtest") == 0 && currentTemp > 40.0f) {
+    Serial.print(F("ConfigTest refused: kiln too hot ("));
+    Serial.print(currentTemp, 0);
+    Serial.println(F(" C) – must be at room temperature"));
+    return;
+  }
   logHead = 0; logCount = 0; lastLogMs = 0;
   fullLogHead = 0; fullLogCount = 0; lastFullLogMs = 0;
   eventCount = 0;
   firingStartMs = millis();
   peakTemp = 0.0f; reportSent = false; manualRelay = false; matrixDone = false;
+  testTimeoutMs = (strcmp(p->id, "configtest") == 0) ? firingStartMs + 4UL * 3600UL * 1000UL : 0;
   profile = p; segIdx = 0; estopFlag = false; kilnState = RAMPING;
   pidI = 0; pidLastMs = millis();
   // Vis første 4 tegn av profilnavn (f.eks. "GLAZ" / "BISQ")
@@ -1107,7 +1132,7 @@ void printStatus() {
 
 void printHelp() {
   Serial.println(F("Commands:"));
-  Serial.println(F("  start 0/1    – start profile"));
+  Serial.println(F("  start 0/1/2  – start profile (0=Glaze 1=Bisque 2=ConfigTest)"));
   Serial.println(F("  stop / reset"));
   Serial.println(F("  relay on/off – manual relay (IDLE only)"));
   Serial.println(F("  display      – toggle LED mode"));

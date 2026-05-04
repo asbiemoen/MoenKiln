@@ -122,6 +122,7 @@ details summary{cursor:pointer;color:#ff7700;font-size:.95em;touch-action:manipu
   <select id="pr">
     <option value="0">Glaze</option>
     <option value="1">Bisque</option>
+    <option value="2">Config Test</option>
   </select>
   <div class="btns">
     <button class="go" id="btn-go" onclick="go()">&#9654; Start</button>
@@ -312,7 +313,7 @@ function refreshLog(){
     el.innerHTML=html;
   }).catch(function(){});
 }
-function go(){fetch('/api/start',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'p='+document.getElementById('pr').value});}
+function go(){fetch('/api/start',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'p='+document.getElementById('pr').value}).then(function(r){return r.json();}).then(function(d){if(!d.ok)alert('Cannot start: '+(d.error||'unknown error'));}).catch(function(){});}
 function stp(){if(!confirm('Stop the firing?'))return;fetch('/api/stop',{method:'POST'});}
 function rst(){fetch('/api/reset',{method:'POST'});}
 fetch('/api/settings').then(function(r){return r.json();}).then(function(d){
