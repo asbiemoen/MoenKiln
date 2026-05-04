@@ -94,6 +94,7 @@ uint8_t firingId         = 0;    // økes ved ny brenning – brukes av GUI til 
 bool    cancelHeld       = false; // startknapp holdes inne under brenning
 unsigned long stoppedMs  = 0;    // tidsstempel for "stanset"-bekreftelse på display
 bool    sensorMissing    = false; // MAX31855 ikke tilkoblet eller feiler
+uint8_t sensorErrCount   = 0;    // konsekutive NaN-avlesninger – alarm ved 3
 unsigned long testTimeoutMs  = 0; // non-zero under Config Test: fires at firingStartMs + 4 h
 unsigned long lastWifiRetryMs = 0; // last time we attempted a reconnect
 
@@ -191,11 +192,18 @@ void loop() {
 // ── Temperaturlesing ──────────────────────────────────────────────────────────
 void readTemp() {
   double t = tc.readCelsius();
-  sensorMissing = isnan(t);
-  if (sensorMissing) {
-    if (kilnState != IDLE) triggerAlarm(F("Thermocouple error"));
+  if (isnan(t)) {
+    sensorErrCount++;
+    if (sensorErrCount >= 3) {
+      sensorMissing = true;
+      if (kilnState != IDLE) triggerAlarm(F("Thermocouple error"));
+    } else {
+      Serial.print(F("TC: bad read ")); Serial.print(sensorErrCount); Serial.println(F("/3"));
+    }
     return;
   }
+  sensorErrCount = 0;
+  sensorMissing = false;
   currentTemp = (float)t;
   if (currentTemp > peakTemp) peakTemp = currentTemp;
 }
