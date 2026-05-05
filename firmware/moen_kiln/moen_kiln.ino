@@ -463,6 +463,12 @@ const char* eventStr(uint8_t t) {
   }
 }
 
+const char* segName(uint8_t rawIdx) {
+  uint8_t si = rawIdx & 0x7F;
+  if (profile && si < profile->segCount) return profile->segments[si].name;
+  return "";
+}
+
 void writeFullLogPoint(unsigned long now) {
   uint16_t idx = fullLogHead % FULL_LOG_SIZE;
   DataPoint& dp = fullLogBuf[idx];
@@ -909,7 +915,7 @@ void handleHTTP() {
     client.println(F("Content-Disposition: attachment; filename=\"detail-log.csv\""));
     client.println(F("Connection: close"));
     client.println();
-    client.println(F("sec,temp,setpoint,relay,duty_pct,seg_idx"));
+    client.println(F("sec,temp,setpoint,relay,duty_pct,comment"));
     uint16_t dstart = (logCount == LOG_SIZE) ? logHead % LOG_SIZE : 0;
     for (uint16_t i = 0; i < logCount; i++) {
       const DataPoint& dp = logBuf[(dstart + i) % LOG_SIZE];
@@ -918,7 +924,7 @@ void handleHTTP() {
       client.print(dp.sp); client.print(',');
       client.print((dp.segIdx & 0x80) ? 1 : 0); client.print(',');
       client.print(dp.pid); client.print(',');
-      client.println(dp.segIdx & 0x7F);
+      client.println(segName(dp.segIdx));
     }
 
   } else if (req.startsWith("GET /api/log.csv")) {
@@ -927,15 +933,14 @@ void handleHTTP() {
     client.println(F("Content-Disposition: attachment; filename=\"firing.csv\""));
     client.println(F("Connection: close"));
     client.println();
-    client.println(F("sec,temp,setpoint,relay,duty_pct,seg_idx,event"));
+    client.println(F("sec,temp,setpoint,relay,duty_pct,comment"));
     uint16_t fstart = (fullLogCount == FULL_LOG_SIZE) ? fullLogHead % FULL_LOG_SIZE : 0;
     uint8_t  ei = 0;
     for (uint16_t i = 0; i < fullLogCount; i++) {
       const DataPoint& dp = fullLogBuf[(fstart + i) % FULL_LOG_SIZE];
-      // Legg inn hendelser som skjedde før dette tidspunktet
       while (ei < eventCount && eventLog[ei].sec <= dp.sec) {
-        client.print(eventLog[ei].sec); client.print(F(","));
-        client.print(eventLog[ei].temp); client.print(F(",,,,,"));
+        client.print(eventLog[ei].sec); client.print(',');
+        client.print(eventLog[ei].temp); client.print(F(",,,,"));
         client.println(eventStr(eventLog[ei].type));
         ei++;
       }
@@ -944,12 +949,11 @@ void handleHTTP() {
       client.print(dp.sp); client.print(',');
       client.print((dp.segIdx & 0x80) ? 1 : 0); client.print(',');
       client.print(dp.pid); client.print(',');
-      client.print(dp.segIdx & 0x7F); client.println(',');
+      client.println(segName(dp.segIdx));
     }
-    // Resterende hendelser etter siste datapunkt
     while (ei < eventCount) {
-      client.print(eventLog[ei].sec); client.print(F(","));
-      client.print(eventLog[ei].temp); client.print(F(",,,,,"));
+      client.print(eventLog[ei].sec); client.print(',');
+      client.print(eventLog[ei].temp); client.print(F(",,,,"));
       client.println(eventStr(eventLog[ei].type));
       ei++;
     }

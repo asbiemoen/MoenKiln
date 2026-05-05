@@ -95,8 +95,8 @@ details summary{cursor:pointer;color:#ff7700;font-size:.95em;touch-action:manipu
 <div class="card" id="logcard" style="padding:10px 8px">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
     <span style="color:#ff7700;font-size:.88em;font-weight:700">Log</span>
-    <a href="/api/log.csv" style="text-decoration:none"><button class="rst" style="flex:0;padding:3px 10px;font-size:.78em">↓ Full log</button></a>
-    <a href="/api/detail.csv" style="text-decoration:none"><button class="rst" style="flex:0;padding:3px 10px;font-size:.78em;margin-left:4px">↓ Detail</button></a>
+    <button class="rst" style="flex:0;padding:3px 10px;font-size:.78em" onclick="dlCsv('/api/log.csv','firing')">↓ Full log</button>
+    <button class="rst" style="flex:0;padding:3px 10px;font-size:.78em;margin-left:4px" onclick="dlCsv('/api/detail.csv','detail')">↓ Detail</button>
     <button class="rst" style="flex:0;padding:3px 10px;font-size:.78em;margin-left:4px" onclick="refreshLog()">↻</button>
   </div>
   <div id="evtsec" style="margin-bottom:8px;display:none">
@@ -148,6 +148,7 @@ var cv=document.getElementById('cv'),cx=cv.getContext('2d'),T=[],SP=[];
 var sc={RAMP:'#ff7700',HOLD:'#44bb44',STOP:'#ff4444',ERR:'#ff4444',DONE:'#44bb44',IDLE:'#666',COOL:'#4499ff'};
 var sn={RAMP:'Heating up',HOLD:'Holding temperature',COOL:'Cooling down',DONE:'Complete',IDLE:'Ready',STOP:'Stopped',ERR:'Error'};
 var modalDismissed=false,lastFiringId=-1,segsData=[],openSeg=-1,logSegNames=[];
+function dlCsv(url,prefix){fetch(url).then(function(r){return r.blob();}).then(function(b){var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=prefix+'-'+new Date().toISOString().slice(0,10)+'.csv';a.click();URL.revokeObjectURL(a.href);});}
 function fmt(s){var h=Math.floor(s/3600),m=Math.floor((s%3600)/60);return h>0?h+'h '+m+'m':m+'m';}
 function dismiss(){
   document.getElementById('overlay').classList.remove('show');
