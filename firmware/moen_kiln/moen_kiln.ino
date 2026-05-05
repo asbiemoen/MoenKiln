@@ -112,20 +112,16 @@ void setup() {
   delay(1500);
 
   Serial.begin(115200);
-  Serial.println(F("DBG1"));
 
   pinMode(LEDR, OUTPUT); digitalWrite(LEDR, HIGH);  // aktiv lav – start av
   pinMode(LEDG, OUTPUT); digitalWrite(LEDG, HIGH);
   pinMode(LEDB, OUTPUT); digitalWrite(LEDB, HIGH);
-  Serial.println(F("DBG2"));
 
   pinMode(PIN_ESTOP, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(PIN_ESTOP), onEstop, FALLING);
-  Serial.println(F("DBG3"));
 
   pinMode(PIN_BTN_START, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(PIN_BTN_START), onBtnStart, FALLING);
-  Serial.println(F("DBG4"));
 
   Serial.println(F("=== Moen Kiln ==="));
   Serial.print(F("Pins: relay=")); Serial.print(PIN_RELAY);
@@ -273,6 +269,7 @@ void tickHolding() {
 void tickFreeCool() {
   pidOutput = 0;
   if (currentTemp <= profile->segments[segIdx].targetTemp + 5.0f) nextSegment();
+  checkAlarms();
 }
 
 void savePendingReport() {
@@ -674,7 +671,7 @@ void checkStartButton() {
     }
   }
 
-  // Hold i IDLE: 2 s = Glaze klar, 5 s = Config Test
+  // Hold i IDLE: 2 s = Glaze klar, 5 s = Bisque
   if (holdStart > 0 && kilnState == IDLE) {
     unsigned long held = now - holdStart;
     cancelHeld = true;
@@ -990,8 +987,8 @@ void handleHTTP() {
   } else if (req.startsWith("GET /api/history")) {
     httpOK(client, "application/json");
     client.print('[');
-    uint8_t start = (logCount == LOG_SIZE) ? logHead % LOG_SIZE : 0;
-    for (uint8_t i = 0; i < logCount; i++) {
+    uint16_t start = (logCount == LOG_SIZE) ? logHead % LOG_SIZE : 0;
+    for (uint16_t i = 0; i < logCount; i++) {
       const DataPoint& dp = logBuf[(start + i) % LOG_SIZE];
       if (i) client.print(',');
       client.print('['); client.print(dp.sec); client.print(',');
@@ -1126,7 +1123,7 @@ void startProfile(const Profile* p) {
   firingStartMs = millis();
   peakTemp = 0.0f; reportSent = false; manualRelay = false; matrixDone = false;
   testTimeoutMs = (strcmp(p->id, "configtest") == 0) ? firingStartMs + 4UL * 3600UL * 1000UL : 0;
-  profile = p; segIdx = 0; estopFlag = false; kilnState = RAMPING;
+  profile = p; segIdx = 0; estopFlag = false; estopAnnounced = false; kilnState = RAMPING;
   pidI = 0; pidLastMs = millis();
   // Vis første 4 tegn av profilnavn (f.eks. "GLAZ" / "BISQ")
   char word[5] = {0};

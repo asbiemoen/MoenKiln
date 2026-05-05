@@ -16,7 +16,7 @@
 #include "config_secrets.h"
 
 // ── Knapper ───────────────────────────────────────────────────────────────────
-#define PIN_BTN_START   5   // Start Glaze (hold 1s) / Bisque (hold 5s)
+#define PIN_BTN_START   5   // Start Glaze (hold 2s) / Bisque (hold 5s)
 
 // ── Data-logg ─────────────────────────────────────────────────────────────────
 #define LOG_SIZE             480         // detaljlogg: RAM, siste 2 timer (15 sek)
@@ -53,7 +53,6 @@ struct Event { uint16_t sec; uint8_t type; uint16_t temp; };
 
 // ── Sikkerhet ────────────────────────────────────────────────────────────────
 #define MAX_TEMP_C       1300.0f
-#define TEMP_DEVIATION   10.0f
 
 // ── EEPROM-layout ─────────────────────────────────────────────────────────────
 // E-post konfigurasjon
