@@ -1006,8 +1006,8 @@ void handleHTTP() {
     } else {
       int idx = constrain(formParam(body, "profile").toInt(), 0, PROFILE_COUNT - 1);
       String mt = formParam(body, "maxtemp");
-      firingMaxTemp = mt.length() > 0 ? (uint16_t)constrain(mt.toInt(), 100, 1400) : 0;
       startProfile(&PROFILES[idx]);
+      if (mt.length() > 0) firingMaxTemp = (uint16_t)constrain(mt.toInt(), 100, 1400);
       httpOK(client, "application/json"); client.print(F("{\"ok\":true}"));
     }
 
@@ -1124,7 +1124,7 @@ void startProfile(const Profile* p) {
   fullLogHead = 0; fullLogCount = 0; lastFullLogMs = 0;
   eventCount = 0;
   firingStartMs = millis();
-  peakTemp = 0.0f; reportSent = false; manualRelay = false; matrixDone = false; firingMaxTemp = 0;
+  peakTemp = 0.0f; reportSent = false; manualRelay = false; matrixDone = false;
   testTimeoutMs = (strcmp(p->id, "configtest") == 0) ? firingStartMs + 4UL * 3600UL * 1000UL : 0;
   profile = p; segIdx = 0; estopFlag = false; kilnState = RAMPING;
   pidI = 0; pidLastMs = millis();
