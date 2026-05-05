@@ -275,7 +275,7 @@ void tickFreeCool() {
 void savePendingReport() {
   unsigned long totalSec = (firingStartMs > 0) ? (millis()-firingStartMs)/1000UL : 0;
   uint16_t maxT = 0;
-  for (uint16_t i = 0; i < logCount; i++) maxT = max(maxT, logBuf[i].temp);
+  for (uint16_t i = 0; i < logCount; i++) if (logBuf[i].temp != 0xFFFF) maxT = max(maxT, logBuf[i].temp);
   uint8_t profIdx = 0;
   for (uint8_t i = 0; i < PROFILE_COUNT; i++) if (profile == &PROFILES[i]) profIdx = i;
 
@@ -468,11 +468,11 @@ const char* segName(uint8_t rawIdx) {
   return "";
 }
 
-void writeFullLogPoint(unsigned long now) {
+void writeFullLogPoint(unsigned long now, uint16_t tempRaw) {
   uint16_t idx = fullLogHead % FULL_LOG_SIZE;
   DataPoint& dp = fullLogBuf[idx];
   dp.sec    = (uint16_t)min((now - firingStartMs) / 1000UL, 65535UL);
-  dp.temp   = (uint16_t)(currentTemp + 0.5f);
+  dp.temp   = tempRaw;
   dp.sp     = (uint16_t)(setpoint + 0.5f);
   dp.pid    = (uint8_t)constrain((int)(pidOutput + 0.5f), 0, 100);
   dp.segIdx = (uint8_t)((digitalRead(PIN_RELAY) ? 0x80 : 0) | (segIdx & 0x7F));
@@ -486,11 +486,11 @@ void writeFullLogPoint(unsigned long now) {
   EEPROM.update(EEPROM_PLOG_FLAG, 0x44);
 }
 
-void writeDetailLogPoint(unsigned long now) {
+void writeDetailLogPoint(unsigned long now, uint16_t tempRaw) {
   uint16_t idx = logHead % LOG_SIZE;
   DataPoint& dp = logBuf[idx];
   dp.sec    = (uint16_t)min((now - firingStartMs) / 1000UL, 65535UL);
-  dp.temp   = (uint16_t)(currentTemp + 0.5f);
+  dp.temp   = tempRaw;
   dp.sp     = (uint16_t)(setpoint + 0.5f);
   dp.pid    = (uint8_t)constrain((int)(pidOutput + 0.5f), 0, 100);
   dp.segIdx = (uint8_t)((digitalRead(PIN_RELAY) ? 0x80 : 0) | (segIdx & 0x7F));
@@ -502,8 +502,8 @@ void writeDetailLogPoint(unsigned long now) {
 void forceLogPoint() {
   if (firingStartMs == 0) return;
   unsigned long now = millis();
-  writeDetailLogPoint(now);
-  writeFullLogPoint(now);
+  writeDetailLogPoint(now, 0xFFFF);  // 0xFFFF = TC error sentinel
+  writeFullLogPoint(now, 0xFFFF);
   lastLogMs     = now;   // reset intervall så neste normale punkt ikke dobler
   lastFullLogMs = now;
 }
@@ -514,12 +514,12 @@ void logData() {
 
   if (now - lastLogMs >= LOG_INTERVAL_MS) {
     lastLogMs = now;
-    writeDetailLogPoint(now);
+    writeDetailLogPoint(now, (uint16_t)(currentTemp + 0.5f));
   }
 
   if (now - lastFullLogMs >= FULL_LOG_INTERVAL_MS) {
     lastFullLogMs = now;
-    writeFullLogPoint(now);
+    writeFullLogPoint(now, (uint16_t)(currentTemp + 0.5f));
   }
 }
 
@@ -920,7 +920,7 @@ void handleHTTP() {
     for (uint16_t i = 0; i < logCount; i++) {
       const DataPoint& dp = logBuf[(dstart + i) % LOG_SIZE];
       client.print(dp.sec); client.print(',');
-      client.print(dp.temp); client.print(',');
+      if (dp.temp == 0xFFFF) client.print(F("ERR")); else client.print(dp.temp); client.print(',');
       client.print(dp.sp); client.print(',');
       client.print((dp.segIdx & 0x80) ? 1 : 0); client.print(',');
       client.print(dp.pid); client.print(',');
@@ -945,7 +945,7 @@ void handleHTTP() {
         ei++;
       }
       client.print(dp.sec); client.print(',');
-      client.print(dp.temp); client.print(',');
+      if (dp.temp == 0xFFFF) client.print(F("ERR")); else client.print(dp.temp); client.print(',');
       client.print(dp.sp); client.print(',');
       client.print((dp.segIdx & 0x80) ? 1 : 0); client.print(',');
       client.print(dp.pid); client.print(',');
@@ -978,7 +978,7 @@ void handleHTTP() {
       const DataPoint& dp = fullLogBuf[(fstart + i) % FULL_LOG_SIZE];
       if (i) client.print(',');
       client.print('['); client.print(dp.sec); client.print(',');
-      client.print(dp.temp); client.print(',');
+      if (dp.temp == 0xFFFF) client.print(F("null")); else client.print(dp.temp); client.print(',');
       client.print(dp.sp); client.print(',');
       client.print(dp.segIdx); client.print(']');
     }
@@ -992,7 +992,7 @@ void handleHTTP() {
       const DataPoint& dp = logBuf[(start + i) % LOG_SIZE];
       if (i) client.print(',');
       client.print('['); client.print(dp.sec); client.print(',');
-      client.print(dp.temp, 1); client.print(','); client.print(dp.sp, 1);
+      if (dp.temp == 0xFFFF) client.print(F("null")); else client.print(dp.temp); client.print(','); client.print(dp.sp, 1);
       client.print(','); client.print(dp.segIdx); client.print(']');
     }
     client.print(']');
@@ -1139,7 +1139,7 @@ void startProfile(const Profile* p) {
   digitalWrite(PIN_RELAY, HIGH); delay(500); digitalWrite(PIN_RELAY, LOW);
   startSegment();
   lastFullLogMs = millis();
-  writeFullLogPoint(millis());
+  writeFullLogPoint(millis(), (uint16_t)(currentTemp + 0.5f));
   logEvent(EV_START);
 }
 
