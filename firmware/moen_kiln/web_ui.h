@@ -124,6 +124,7 @@ details summary{cursor:pointer;color:#ff7700;font-size:.95em;touch-action:manipu
     <option value="1">Bisque</option>
     <option value="2">Config Test</option>
   </select>
+  <input class="inp" id="maxtemp" type="number" min="100" max="1400" placeholder="Max temp °C (default 1300)">
   <div class="btns">
     <button class="go" id="btn-go" onclick="go()">&#9654; Start</button>
     <button class="stop" id="btn-stop" onclick="stp()">&#9632; Stop</button>
@@ -314,7 +315,7 @@ function refreshLog(){
     el.innerHTML=html;
   }).catch(function(){});
 }
-function go(){fetch('/api/start',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'p='+document.getElementById('pr').value}).then(function(r){return r.json();}).then(function(d){if(!d.ok)alert('Cannot start: '+(d.error||'unknown error'));}).catch(function(){});}
+function go(){var mt=document.getElementById('maxtemp').value;var body='profile='+document.getElementById('pr').value+(mt?'&maxtemp='+parseInt(mt):'');fetch('/api/start',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:body}).then(function(r){return r.json();}).then(function(d){if(!d.ok)alert('Cannot start: '+(d.error||'unknown error'));}).catch(function(){});}
 function stp(){if(!confirm('Stop the firing?'))return;fetch('/api/stop',{method:'POST'});}
 function rst(){fetch('/api/reset',{method:'POST'});}
 fetch('/api/settings').then(function(r){return r.json();}).then(function(d){
