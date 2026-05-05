@@ -132,44 +132,42 @@ static void _genBody(const char* fromA, const char* toA, const char* ccA,
   _stEsc("<tr><td style='color:#888'>Max temperature</td><td><b>"); _stEsc(buf);
   _stEsc(" &deg;C</b></td></tr></table>");
 
-  // SVG-graf
+  // Table-based bar chart (SVG is stripped by Gmail and unsupported in Outlook)
   if (logCount >= 2) {
     float yMax = 0, yMin = 9999;
-    uint16_t tMax = 0;
     for (int i = 0; i < logCount; i++) {
       uint16_t idx = (logCount == LOG_SIZE) ? (uint16_t)((logHead+i)%LOG_SIZE) : (uint16_t)i;
       if (logBuf[idx].temp > yMax) yMax = logBuf[idx].temp;
       if (logBuf[idx].temp < yMin) yMin = logBuf[idx].temp;
-      if (logBuf[idx].sec  > tMax) tMax  = logBuf[idx].sec;
     }
     yMax += 30; yMin = (yMin > 30) ? yMin - 30 : 0;
     float yr = yMax - yMin;
-    const int W = 500, H = 140;
 
-    _stEsc("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 500 140' "
-           "style='background:#222;border-radius:8px;margin-bottom:18px;width:100%'>");
-    if (yMin < 573 && yMax > 573) {
-      int y5 = H - (int)((573-yMin)/yr*H);
-      snprintf(buf,sizeof(buf),"%d",y5);
-      _stEsc("<line x1='0' y1='"); _stEsc(buf); _stEsc("' x2='500' y2='"); _stEsc(buf);
-      _stEsc("' stroke='#ff3333' stroke-width='1' stroke-dasharray='4,4'/>");
+    const int N_BARS  = 30;
+    const int CHART_H = 100;
+
+    _stEsc("<table cellpadding='0' cellspacing='1' bgcolor='#222' "
+           "style='margin-bottom:18px' width='420'><tr>");
+    for (int b = 0; b < N_BARS; b++) {
+      int pi  = b * (logCount - 1) / (N_BARS - 1);
+      int idx = (logCount == LOG_SIZE) ? (int)((logHead + pi) % LOG_SIZE) : pi;
+      int bh  = (yr > 0) ? (int)(((float)logBuf[idx].temp - yMin) / yr * CHART_H) : CHART_H / 2;
+      if (bh < 1)       bh = 1;
+      if (bh > CHART_H) bh = CHART_H;
+      int sh = CHART_H - bh;
+      _stEsc("<td valign='bottom' width='13'>"
+             "<table cellpadding='0' cellspacing='0'>");
+      if (sh > 0) {
+        snprintf(buf, sizeof(buf), "%d", sh);
+        _stEsc("<tr><td bgcolor='#222' height='"); _stEsc(buf);
+        _stEsc("' width='13'>&nbsp;</td></tr>");
+      }
+      snprintf(buf, sizeof(buf), "%d", bh);
+      _stEsc("<tr><td bgcolor='#ff7700' height='"); _stEsc(buf);
+      _stEsc("' width='13'>&nbsp;</td></tr>");
+      _stEsc("</table></td>");
     }
-    _stEsc("<polyline fill='none' stroke='#555' stroke-width='1.5' "
-           "stroke-dasharray='5,5' points='");
-    for (int i = 0; i < logCount; i++) {
-      uint16_t idx=(logCount==LOG_SIZE)?(uint16_t)((logHead+i)%LOG_SIZE):(uint16_t)i;
-      int x=tMax>0?(int)((float)logBuf[idx].sec/tMax*W):i*W/logCount;
-      int y=H-(int)((logBuf[idx].sp-yMin)/yr*H);
-      snprintf(buf,sizeof(buf),"%d,%d ",x,y); _stEsc(buf);
-    }
-    _stEsc("'/><polyline fill='none' stroke='#ff7700' stroke-width='2.5' points='");
-    for (int i = 0; i < logCount; i++) {
-      uint16_t idx=(logCount==LOG_SIZE)?(uint16_t)((logHead+i)%LOG_SIZE):(uint16_t)i;
-      int x=tMax>0?(int)((float)logBuf[idx].sec/tMax*W):i*W/logCount;
-      int y=H-(int)((logBuf[idx].temp-yMin)/yr*H);
-      snprintf(buf,sizeof(buf),"%d,%d ",x,y); _stEsc(buf);
-    }
-    _stEsc("'/></svg>");
+    _stEsc("</tr></table>");
   }
 
   // Temperaturlogg-tabell
@@ -185,8 +183,8 @@ static void _genBody(const char* fromA, const char* toA, const char* ccA,
     for (int i = 0; i < logCount; i++) {
       uint16_t idx=(logCount==LOG_SIZE)?(uint16_t)((logHead+i)%LOG_SIZE):(uint16_t)i;
       const DataPoint& dp = logBuf[idx];
-      const char* sn = (profile && dp.segIdx < profile->segCount)
-                       ? profile->segments[dp.segIdx].name : "?";
+      const char* sn = (profile && (dp.segIdx & 0x7F) < profile->segCount)
+                       ? profile->segments[dp.segIdx & 0x7F].name : "?";
       snprintf(buf, sizeof(buf), "%02d:%02d",
                (int)(dp.sec/3600), (int)((dp.sec%3600)/60));
       _stEsc(i%2==0 ? "<tr style='background:#1e1e1e'>" : "<tr style='background:#242424'>");
