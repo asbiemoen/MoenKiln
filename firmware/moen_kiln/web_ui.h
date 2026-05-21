@@ -49,6 +49,16 @@ button:disabled{opacity:0.35;cursor:not-allowed;transform:none!important;filter:
 .inp{width:100%;padding:8px;border-radius:6px;border:none;background:#333;color:#eee;font-size:.88em;margin-bottom:6px;display:block}
 .shead{color:#888;font-size:.82em;margin:10px 0 8px}
 details summary{cursor:pointer;color:#ff7700;font-size:.95em;touch-action:manipulation}
+.profrow{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #2a2a2a}
+.profrow:last-child{border-bottom:none}
+.profname{flex:1;font-size:.85em;color:#eee}
+.profbadge{font-size:.72em;color:#666;background:#2a2a2a;padding:2px 6px;border-radius:4px}
+.profbtn{flex:0 0 auto;padding:4px 10px;font-size:.78em;border:none;border-radius:5px;cursor:pointer;font-weight:600;touch-action:manipulation}
+.profbtn:active{filter:brightness(.75)}
+.profcopy{background:#333;color:#eee}
+.profdel{background:#5a1a1a;color:#ff6666}
+textarea.valid{border:1.5px solid #2e7d32}
+textarea.invalid{border:1.5px solid #b71c1c}
 #overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:100;align-items:center;justify-content:center}
 #overlay.show{display:flex}
 #modal{background:#222;border-radius:14px;padding:28px 24px;max-width:300px;width:90%;text-align:center}
@@ -119,17 +129,33 @@ details summary{cursor:pointer;color:#ff7700;font-size:.95em;touch-action:manipu
 </div>
 <div class="card">
   <label>Firing profile</label>
-  <select id="pr">
-    <option value="0">Glaze</option>
-    <option value="1">Bisque</option>
-    <option value="2">Config Test</option>
-  </select>
+  <select id="pr"></select>
   <input class="inp" id="maxtemp" type="number" min="100" max="1400" placeholder="Max temp °C (default 1300)">
   <div class="btns">
     <button class="go" id="btn-go" onclick="go()">&#9654; Start</button>
     <button class="stop" id="btn-stop" onclick="stp()">&#9632; Stop</button>
     <button class="rst" id="btn-rst" onclick="rst()">&#8635; Reset</button>
   </div>
+</div>
+<div class="card">
+<details id="profdetails">
+<summary>Firing Profiles</summary>
+<div style="margin-top:10px">
+<p class="shead">Built-in profiles (read-only)</p>
+<div id="builtinList"></div>
+<p class="shead" style="margin-top:12px">Custom profiles</p>
+<div id="customList"></div>
+<div style="margin-top:10px">
+<p class="shead">Edit / add custom profile (JSON)</p>
+<textarea id="profJson" class="inp" rows="18" spellcheck="false" style="font-family:monospace;font-size:.73em;resize:vertical;white-space:pre"></textarea>
+<div id="profErr" style="color:#ff4444;font-size:.8em;margin-bottom:6px;min-height:1.2em"></div>
+<div class="btns">
+  <button class="rst" style="flex:0 0 auto;padding:10px 14px" onclick="loadProfiles()">&#8635; Reload</button>
+  <button class="go" id="btn-saveprof" onclick="saveProfiles()">&#8593; Save to device</button>
+</div>
+</div>
+</div>
+</details>
 </div>
 <div class="card">
 <details>
@@ -331,6 +357,164 @@ function saveSet(){
   fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:b})
     .then(function(){alert('Saved!');});
 }
+// ── Profile editor ────────────────────────────────────────────────────────────
+var allProfiles=[];
+
+function loadProfiles(){
+  fetch('/api/profiles').then(function(r){return r.json();}).then(function(data){
+    allProfiles=data;
+    renderProfileSelect();
+    renderProfileLists();
+  }).catch(function(){});
+}
+
+function renderProfileSelect(){
+  var sel=document.getElementById('pr');
+  var prev=sel.value;
+  sel.innerHTML='';
+  allProfiles.forEach(function(p,i){
+    var opt=document.createElement('option');
+    opt.value=i;
+    opt.textContent=p.name+(p.builtin?' (built-in)':'');
+    sel.appendChild(opt);
+  });
+  // Restore selection if still valid
+  if(prev!==''&&prev<allProfiles.length) sel.value=prev;
+}
+
+function renderProfileLists(){
+  var builtinEl=document.getElementById('builtinList');
+  var customEl=document.getElementById('customList');
+  builtinEl.innerHTML=''; customEl.innerHTML='';
+  allProfiles.forEach(function(p,i){
+    var row=document.createElement('div');
+    row.className='profrow';
+    row.innerHTML='<span class="profname">'+escH(p.name)+'</span>'
+      +'<span class="profbadge">'+p.segments.length+' seg</span>';
+    if(p.builtin){
+      var btn=document.createElement('button');
+      btn.className='profbtn profcopy'; btn.textContent='Copy';
+      (function(prof){btn.onclick=function(){copyProfile(prof);};})(p);
+      row.appendChild(btn);
+      builtinEl.appendChild(row);
+    } else {
+      var editBtn=document.createElement('button');
+      editBtn.className='profbtn profcopy'; editBtn.textContent='Edit';
+      (function(prof){editBtn.onclick=function(){editProfile(prof);};})(p);
+      var delBtn=document.createElement('button');
+      delBtn.className='profbtn profdel'; delBtn.textContent='Del';
+      (function(idx){delBtn.onclick=function(){deleteProfile(idx);};})(i);
+      row.appendChild(editBtn); row.appendChild(delBtn);
+      customEl.appendChild(row);
+    }
+  });
+  if(customEl.children.length===0){
+    customEl.innerHTML='<div style="color:#555;font-size:.82em;padding:6px 0">No custom profiles yet — copy a built-in to get started.</div>';
+  }
+}
+
+function escH(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+function copyProfile(p){
+  var copy=JSON.parse(JSON.stringify(p));
+  delete copy.builtin;
+  copy.id=copy.id+'-copy';
+  copy.name=copy.name+' (copy)';
+  setEditorJSON(copy);
+  document.getElementById('profdetails').open=true;
+  document.getElementById('profJson').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function editProfile(p){
+  var copy=JSON.parse(JSON.stringify(p));
+  delete copy.builtin;
+  setEditorJSON(copy);
+  document.getElementById('profdetails').open=true;
+  document.getElementById('profJson').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function deleteProfile(globalIdx){
+  var p=allProfiles[globalIdx];
+  if(!p||p.builtin) return;
+  if(!confirm('Delete profile "'+p.name+'"?')) return;
+  var customs=allProfiles.filter(function(x){return !x.builtin;});
+  customs=customs.filter(function(x){return x.id!==p.id;});
+  postCustoms(customs);
+}
+
+function setEditorJSON(obj){
+  var ta=document.getElementById('profJson');
+  ta.value=JSON.stringify(obj,null,2);
+  validateEditor();
+}
+
+function validateEditor(){
+  var ta=document.getElementById('profJson');
+  var errEl=document.getElementById('profErr');
+  var raw=ta.value.trim();
+  if(!raw){ta.className='inp';errEl.textContent='';return null;}
+  var parsed;
+  try{ parsed=JSON.parse(raw); }
+  catch(e){ ta.className='inp invalid'; errEl.textContent='✘ '+e.message; return null; }
+  // Semantic validation of a single profile object
+  var profiles=Array.isArray(parsed)?parsed:[parsed];
+  for(var pi=0;pi<profiles.length;pi++){
+    var p=profiles[pi];
+    if(typeof p.id!=='string'||!p.id.trim()){ setErr(ta,errEl,'Profile missing "id"'); return null; }
+    if(typeof p.name!=='string'||!p.name.trim()){ setErr(ta,errEl,'Profile missing "name"'); return null; }
+    if(p.name.length>15){ setErr(ta,errEl,'name too long (max 15 chars)'); return null; }
+    if(!Array.isArray(p.segments)||p.segments.length===0){ setErr(ta,errEl,'Profile needs at least 1 segment'); return null; }
+    if(p.segments.length>8){ setErr(ta,errEl,'Too many segments (max 8)'); return null; }
+    for(var si=0;si<p.segments.length;si++){
+      var s=p.segments[si];
+      if(typeof s.name!=='string'||!s.name.trim()){ setErr(ta,errEl,'Segment '+(si+1)+' missing name'); return null; }
+      if(s.name.length>11){ setErr(ta,errEl,'Segment name too long (max 11 chars)'); return null; }
+      if(typeof s.targetTemp!=='number'||s.targetTemp<100||s.targetTemp>1400){ setErr(ta,errEl,'Segment '+(si+1)+': targetTemp must be 100–1400'); return null; }
+      if(typeof s.ratePerHour!=='number'||s.ratePerHour<0||s.ratePerHour>9999){ setErr(ta,errEl,'Segment '+(si+1)+': ratePerHour must be 0–9999'); return null; }
+      if(typeof s.holdMin!=='number'||s.holdMin<0||s.holdMin>999){ setErr(ta,errEl,'Segment '+(si+1)+': holdMin must be 0–999'); return null; }
+    }
+  }
+  ta.className='inp valid';
+  errEl.textContent='✓ Valid — '+profiles.length+' profile(s), '+profiles.reduce(function(a,p){return a+p.segments.length;},0)+' segments total';
+  errEl.style.color='#44bb44';
+  return profiles;
+}
+
+function setErr(ta,errEl,msg){ ta.className='inp invalid'; errEl.style.color='#ff4444'; errEl.textContent='✘ '+msg; }
+
+function saveProfiles(){
+  var profiles=validateEditor();
+  if(!profiles) return;
+  // Merge: keep existing customs that are not being replaced, then add/update edited ones
+  var existing=allProfiles.filter(function(p){return !p.builtin;});
+  var editedIds=profiles.map(function(p){return p.id;});
+  var kept=existing.filter(function(p){return editedIds.indexOf(p.id)===-1;});
+  var merged=kept.concat(profiles);
+  if(merged.length>5){ alert('Too many custom profiles (max 5 total)'); return; }
+  postCustoms(merged);
+}
+
+function postCustoms(customs){
+  var clean=customs.map(function(p){
+    return {id:p.id,name:p.name,segments:p.segments.map(function(s){
+      return {name:s.name,targetTemp:s.targetTemp,ratePerHour:s.ratePerHour,holdMin:s.holdMin};
+    })};
+  });
+  fetch('/api/profiles',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(clean)})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d.ok){ loadProfiles(); }
+      else{ alert('Error: '+(d.error||'unknown')); }
+    }).catch(function(){});
+}
+
+document.getElementById('profJson').addEventListener('input',function(){
+  var r=validateEditor();
+  document.getElementById('profErr').style.color=(r?'#44bb44':'#ff4444');
+});
+
+loadProfiles();
+
 poll();
 refreshLog();
 setInterval(refreshLog, 300000);
