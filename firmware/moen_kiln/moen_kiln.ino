@@ -8,6 +8,7 @@
 #include "Arduino_LED_Matrix.h"
 #include "config.h"
 #include "profiles.h"
+#include "custom_profiles.h"
 #include "web_ui.h"
 #include "led_display.h"
 #include "email.h"
@@ -143,6 +144,7 @@ void setup() {
   }
 
   loadPersistentLog();
+  loadCustomProfiles();
   setupWiFi();
 
   relayWinMs = millis();
@@ -833,6 +835,18 @@ void maybeReconnectWiFi() {
   Serial.println(F("WiFi: reconnect failed"));
 }
 
+// ── Profile helpers ───────────────────────────────────────────────────────────
+uint8_t getTotalProfileCount() {
+  return PROFILE_COUNT + customProfileCount;
+}
+
+const Profile* getProfileByIndex(uint8_t idx) {
+  if (idx < PROFILE_COUNT) return &PROFILES[idx];
+  uint8_t ci = idx - PROFILE_COUNT;
+  if (ci < customProfileCount) return &customProfiles[ci];
+  return nullptr;
+}
+
 // ── HTTP server ───────────────────────────────────────────────────────────────
 void handleHTTP() {
   if (WiFi.status() != WL_CONNECTED) return;
@@ -997,15 +1011,35 @@ void handleHTTP() {
     }
     client.print(']');
 
+  } else if (req.startsWith("GET /api/profiles")) {
+    httpOK(client, "application/json");
+    sendProfilesJSON(client);
+
+  } else if (req.startsWith("POST /api/profiles")) {
+    const char* err = parseAndSaveCustomProfiles(body.c_str());
+    httpOK(client, "application/json");
+    if (err) {
+      client.print(F("{\"ok\":false,\"error\":\""));
+      client.print(err);
+      client.print(F("\"}"));
+    } else {
+      client.print(F("{\"ok\":true}"));
+    }
+
   } else if (req.startsWith("POST /api/start")) {
     if (sensorMissing) {
       httpOK(client, "application/json"); client.print(F("{\"ok\":false,\"error\":\"no sensor\"}"));
     } else {
-      int idx = constrain(formParam(body, "profile").toInt(), 0, PROFILE_COUNT - 1);
+      int idx = constrain(formParam(body, "profile").toInt(), 0, (int)getTotalProfileCount() - 1);
+      const Profile* p = getProfileByIndex((uint8_t)idx);
       String mt = formParam(body, "maxtemp");
-      startProfile(&PROFILES[idx]);
-      if (mt.length() > 0) firingMaxTemp = (uint16_t)constrain(mt.toInt(), 100, 1400);
-      httpOK(client, "application/json"); client.print(F("{\"ok\":true}"));
+      if (p) {
+        startProfile(p);
+        if (mt.length() > 0) firingMaxTemp = (uint16_t)constrain(mt.toInt(), 100, 1400);
+        httpOK(client, "application/json"); client.print(F("{\"ok\":true}"));
+      } else {
+        httpOK(client, "application/json"); client.print(F("{\"ok\":false,\"error\":\"invalid profile\"}"));
+      }
     }
 
   } else if (req.startsWith("POST /api/relay")) {
@@ -1083,7 +1117,8 @@ void handleSerial() {
     if (sensorMissing) { Serial.println(F("ERROR: no sensor")); }
     else {
       int idx = cmd.substring(6).toInt();
-      if (idx >= 0 && (uint8_t)idx < PROFILE_COUNT) startProfile(&PROFILES[idx]);
+      const Profile* p = (idx >= 0) ? getProfileByIndex((uint8_t)idx) : nullptr;
+      if (p) startProfile(p);
       else Serial.println(F("Unknown profile"));
     }
 
@@ -1106,8 +1141,11 @@ void handleSerial() {
     if (WiFi.status() == WL_CONNECTED) Serial.println(WiFi.localIP());
     else Serial.println(F("Not connected"));
   } else if (cmd == "profiles") {
-    for (uint8_t i = 0; i < PROFILE_COUNT; i++) {
-      Serial.print(i); Serial.print(F(": ")); Serial.println(PROFILES[i].name);
+    for (uint8_t i = 0; i < getTotalProfileCount(); i++) {
+      const Profile* p = getProfileByIndex(i);
+      Serial.print(i); Serial.print(F(": ")); Serial.print(p->name);
+      if (i >= PROFILE_COUNT) Serial.print(F(" [custom]"));
+      Serial.println();
     }
   } else if (cmd == "display") {
     displayScreen = (displayScreen + 1) % 4;
@@ -1169,7 +1207,8 @@ void printStatus() {
 
 void printHelp() {
   Serial.println(F("Commands:"));
-  Serial.println(F("  start 0/1/2  – start profile (0=Glaze 1=Bisque 2=ConfigTest)"));
+  Serial.print(F("  start <n>    – start profile by index (type 'profiles' to list)"));
+  Serial.println();
   Serial.println(F("  stop / reset"));
   Serial.println(F("  relay on/off – manual relay (IDLE only)"));
   Serial.println(F("  display      – toggle LED mode"));
