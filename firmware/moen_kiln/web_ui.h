@@ -148,7 +148,8 @@ textarea.invalid{border:1.5px solid #b71c1c}
 <div style="margin-top:10px">
 <p class="shead">Edit / add custom profile</p>
 <label style="font-size:.8em;color:#888;margin-bottom:4px;display:block">Profile Name</label>
-<input class="inp" id="profName" type="text" placeholder="e.g. My Glaze" maxlength="15" style="margin-bottom:8px">
+<input class="inp" id="profName" type="text" placeholder="e.g. My Glaze" maxlength="15" style="margin-bottom:4px">
+<div id="profNameErr" style="color:#ff4444;font-size:.8em;margin-bottom:6px;min-height:1.2em"></div>
 <label style="font-size:.8em;color:#888;margin-bottom:4px;display:block">JSON</label>
 <textarea id="profJson" class="inp" rows="18" spellcheck="false" style="font-family:monospace;font-size:.73em;resize:vertical;white-space:pre"></textarea>
 <div id="profErr" style="color:#ff4444;font-size:.8em;margin-bottom:6px;min-height:1.2em"></div>
@@ -390,30 +391,37 @@ function renderProfileLists(){
   var builtinEl=document.getElementById('builtinList');
   var customEl=document.getElementById('customList');
   builtinEl.innerHTML=''; customEl.innerHTML='';
+  var customCount=allProfiles.filter(function(p){return !p.builtin;}).length;
   allProfiles.forEach(function(p,i){
     var row=document.createElement('div');
     row.className='profrow';
     row.innerHTML='<span class="profname">'+escH(p.name)+'</span>'
       +'<span class="profbadge">'+p.segments.length+' seg</span>';
+    var canCopy=(customCount<5);
     if(p.builtin){
-      var btn=document.createElement('button');
-      btn.className='profbtn profcopy'; btn.textContent='Copy';
-      (function(prof){btn.onclick=function(){copyProfile(prof);};})(p);
-      row.appendChild(btn);
+      var qBtn=document.createElement('button');
+      qBtn.className='profbtn profcopy'; qBtn.textContent='⊕ Copy';
+      qBtn.disabled=!canCopy; qBtn.title=canCopy?'Save a copy instantly':'Max 5 custom profiles';
+      (function(prof){qBtn.onclick=function(){quickCopy(prof);};})(p);
+      row.appendChild(qBtn);
       builtinEl.appendChild(row);
     } else {
       var editBtn=document.createElement('button');
       editBtn.className='profbtn profcopy'; editBtn.textContent='Edit';
       (function(prof){editBtn.onclick=function(){editProfile(prof);};})(p);
+      var qBtn2=document.createElement('button');
+      qBtn2.className='profbtn profcopy'; qBtn2.textContent='⊕ Copy';
+      qBtn2.disabled=!canCopy; qBtn2.title=canCopy?'Save a copy instantly':'Max 5 custom profiles';
+      (function(prof){qBtn2.onclick=function(){quickCopy(prof);};})(p);
       var delBtn=document.createElement('button');
       delBtn.className='profbtn profdel'; delBtn.textContent='Del';
       (function(idx){delBtn.onclick=function(){deleteProfile(idx);};})(i);
-      row.appendChild(editBtn); row.appendChild(delBtn);
+      row.appendChild(editBtn); row.appendChild(qBtn2); row.appendChild(delBtn);
       customEl.appendChild(row);
     }
   });
   if(customEl.children.length===0){
-    customEl.innerHTML='<div style="color:#555;font-size:.82em;padding:6px 0">No custom profiles yet — copy a built-in to get started.</div>';
+    customEl.innerHTML='<div style="color:#555;font-size:.82em;padding:6px 0">No custom profiles yet — use ⊕ Copy on a built-in to get started.</div>';
   }
 }
 
@@ -489,6 +497,34 @@ function validateEditor(){
 
 function setErr(ta,errEl,msg){ ta.className='inp invalid'; errEl.style.color='#ff4444'; errEl.textContent='✘ '+msg; }
 
+function findUniqueName(base){
+  var names=allProfiles.map(function(p){return p.name.toLowerCase();});
+  var first=base+' (copy)';
+  if(names.indexOf(first.toLowerCase())===-1) return first;
+  var n=2;
+  while(names.indexOf((base+' (copy '+n+')').toLowerCase())!==-1) n++;
+  return base+' (copy '+n+')';
+}
+
+function findUniqueId(baseId){
+  var ids=allProfiles.map(function(p){return p.id;});
+  var first=baseId+'-copy';
+  if(ids.indexOf(first)===-1) return first;
+  var n=2;
+  while(ids.indexOf(baseId+'-copy-'+n)!==-1) n++;
+  return baseId+'-copy-'+n;
+}
+
+function quickCopy(p){
+  var customs=allProfiles.filter(function(x){return !x.builtin;});
+  if(customs.length>=5){alert('Max 5 custom profiles reached.');return;}
+  var copy=JSON.parse(JSON.stringify(p));
+  delete copy.builtin;
+  copy.name=findUniqueName(p.name);
+  copy.id=nameToId(copy.name)||findUniqueId(p.id);
+  postCustoms(customs.concat([copy]));
+}
+
 function nameToId(n){
   return n.toLowerCase()
     .replace(/æ/g,'ae').replace(/ø/g,'o').replace(/å/g,'a')
@@ -500,6 +536,7 @@ function saveProfiles(){
   if(!profiles) return;
   var nameVal=document.getElementById('profName').value.trim();
   if(!nameVal){ alert('Please fill in the Profile Name field.'); document.getElementById('profName').focus(); return; }
+  if(checkNameDuplicate(nameVal)){ document.getElementById('profName').focus(); return; }
   if(profiles.length===1){
     profiles[0].name=nameVal;
     profiles[0].id=nameToId(nameVal)||('profile-'+Date.now()); // always auto-generate from name
@@ -540,6 +577,25 @@ function postCustoms(customs){
 document.getElementById('profJson').addEventListener('input',function(){
   var r=validateEditor();
   document.getElementById('profErr').style.color=(r?'#44bb44':'#ff4444');
+});
+
+function checkNameDuplicate(val){
+  var errEl=document.getElementById('profNameErr');
+  var inp=document.getElementById('profName');
+  if(!val){inp.className='inp';errEl.textContent='';return false;}
+  var dup=allProfiles.some(function(p){
+    return p.name.toLowerCase()===val.toLowerCase() && p.id!==_editingId;
+  });
+  if(dup){
+    inp.className='inp invalid';
+    errEl.textContent='✘ "'+val+'" is already in use — choose a different name';
+    return true;
+  }
+  inp.className='inp';errEl.textContent='';return false;
+}
+
+document.getElementById('profName').addEventListener('input',function(){
+  checkNameDuplicate(this.value.trim());
 });
 
 loadProfiles();
