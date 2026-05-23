@@ -8,8 +8,8 @@ Arduino-based kiln controller for the Evenheat PF3220 ceramic kiln. Controls fir
 |-----------|---------|
 | Microcontroller | Arduino Uno R4 WiFi |
 | Temperature sensor | MAX31855 breakout (K-type thermocouple) |
-| SSR | Single-phase solid state relay (adjust to your kiln – tested with 440V AC / 40A) |
-| Buttons | 2× momentary push button |
+| Relay | Evenheat original mechanical relay |
+| Buttons | 1× momentary push button (Playknowlogy) |
 
 ### Wiring
 
@@ -22,15 +22,15 @@ Arduino-based kiln controller for the Evenheat PF3220 ceramic kiln. Controls fir
 | CLK | 13 (SCK) |
 | 3VO | — (do not connect) |
 
-| SSR | Arduino pin |
-|-----|-------------|
-| DC+ | 4 (via 220–470Ω resistor – check SSR minimum trigger current) |
-| DC− | GND |
+| Relay module | Arduino pin |
+|---|---|
+| S | 4 |
+| + | 5V |
+| − | GND |
 
 | Button | Arduino pin | Function |
 |--------|-------------|----------|
-| Emergency stop | 3 | Emergency stop (hardware interrupt) |
-| Start | 5 | Start / cancel (hold 1s = Glaze, hold 5s = Bisque) |
+| Start / cancel | 5 | Hold 2s = start Glaze, hold 5s = start Bisque, hold 5s during firing = cancel |
 
 ## Getting started
 
@@ -60,9 +60,7 @@ Copy `firmware/moen_kiln/config_secrets.h.example` to `firmware/moen_kiln/config
 
 - `WiFiS3` (bundled with Uno R4 WiFi SDK)
 - `Adafruit MAX31855`
-- `ArduinoJson`
 - `Arduino_LED_Matrix` (bundled with Uno R4 WiFi SDK)
-- `NTPClient`
 
 ### 3. Upload firmware
 
@@ -74,8 +72,8 @@ The IP address scrolls across the LED matrix at startup. Open it in your browser
 
 ## Features
 
-- **Firing profiles** — pre-defined Glaze and Bisque profiles, editable via web UI
-- **PID control** — time-proportional relay control with 10-second window
+- **Firing profiles** — built-in Glaze, Bisque and Config Test profiles (read-only); create and edit custom profiles via web UI JSON editor
+- **PID control** — time-proportional relay control with 30-second window (tuned for mechanical relay)
 - **Two-tier logging**
   - Detail log: every 15 seconds, last 2 hours (RAM)
   - Full log: every 5 minutes, entire firing up to 12 hours (RAM + EEPROM)
@@ -109,5 +107,6 @@ firmware/
 | 304–4143 | 3840 B | Pending report log (480 × 8 bytes) |
 | 4144–5300 | 1157 B | Full firing log (144 × 8 bytes + metadata) |
 | 5301–5462 | 162 B | Event log (32 × 5 bytes + metadata) |
+| 5464–6351 | 887 B | Custom firing profiles (up to 5 profiles × 8 segments) |
 
-Total: 5463 / 8192 bytes used.
+Total: 6351 / 8192 bytes used.
