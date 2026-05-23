@@ -105,8 +105,8 @@ textarea.invalid{border:1.5px solid #b71c1c}
 <div class="card" id="logcard" style="padding:10px 8px">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
     <span style="color:#ff7700;font-size:.88em;font-weight:700">🪵 Log</span>
-    <button class="rst" style="flex:0;padding:3px 10px;font-size:.78em" onclick="dlCsv('/api/log.csv','firing')">↓ Full log</button>
-    <button class="rst" style="flex:0;padding:3px 10px;font-size:.78em;margin-left:4px" onclick="dlCsv('/api/detail.csv','detail')">↓ Detail</button>
+    <button id="btn-dllog" class="rst" style="flex:0;padding:3px 10px;font-size:.78em" onclick="dlCsv('/api/log.csv','firing')">↓ Full log</button>
+    <button id="btn-dldet" class="rst" style="flex:0;padding:3px 10px;font-size:.78em;margin-left:4px" onclick="dlCsv('/api/detail.csv','detail')">↓ Detail</button>
     <button class="rst" style="flex:0;padding:3px 10px;font-size:.78em;margin-left:4px" onclick="refreshLog()">↻</button>
   </div>
   <div id="evtsec" style="margin-bottom:8px;display:none">
@@ -151,7 +151,7 @@ textarea.invalid{border:1.5px solid #b71c1c}
 <input class="inp" id="profName" type="text" placeholder="e.g. My Glaze" maxlength="15" style="margin-bottom:4px">
 <div id="profNameErr" style="color:#ff4444;font-size:.8em;margin-bottom:6px;min-height:1.2em"></div>
 <label style="font-size:.8em;color:#888;margin-bottom:4px;display:block">JSON</label>
-<textarea id="profJson" class="inp" rows="18" spellcheck="false" style="font-family:monospace;font-size:.73em;resize:vertical;white-space:pre"></textarea>
+<textarea id="profJson" class="inp" rows="18" spellcheck="false" placeholder='{"segments":[{"name":"Ramp 1","targetTemp":600,"ratePerHour":100,"holdMin":0}]}' style="font-family:monospace;font-size:.73em;resize:vertical;white-space:pre"></textarea>
 <div id="profErr" style="color:#ff4444;font-size:.8em;margin-bottom:6px;min-height:1.2em"></div>
 <div class="btns">
   <button class="rst" style="flex:0 0 auto;padding:10px 14px" onclick="loadProfiles()">&#8635; Reload</button>
@@ -308,9 +308,14 @@ function toggleSeg(i){
 }
 var evColors={0:'#44bb44',1:'#ff9933',2:'#4499ff',3:'#ff4444',4:'#ff4444',5:'#ff4444',6:'#44bb44',7:'#888'};
 function fmtSec(s){var h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sc=s%60;return h>0?h+'h '+(m<10?'0':'')+m+'m':m+'m '+(sc<10?'0':'')+sc+'s';}
+function setLogButtons(hasData){
+  document.getElementById('btn-dllog').disabled=!hasData;
+  document.getElementById('btn-dldet').disabled=!hasData;
+}
 function refreshLog(){
   fetch('/api/fulllog').then(function(r){return r.json();}).then(function(rows){
     var tb=document.getElementById('logtbody');
+    setLogButtons(rows.length>0);
     if(!rows.length){tb.innerHTML='<tr><td colspan="6" style="padding:12px 6px;color:#555;text-align:center">No data</td></tr>';return;}
     var html='';
     rows.forEach(function(r,idx){
@@ -474,8 +479,9 @@ function validateEditor(){
   var parsed;
   try{ parsed=JSON.parse(raw); }
   catch(e){ ta.className='inp invalid'; errEl.textContent='✘ '+e.message; return null; }
-  // Semantic validation of a single profile object
+  // Strip id/name/builtin — only segments belong in the JSON
   var profiles=Array.isArray(parsed)?parsed:[parsed];
+  profiles.forEach(function(p){delete p.id;delete p.name;delete p.builtin;});
   for(var pi=0;pi<profiles.length;pi++){
     var p=profiles[pi];
     if(!Array.isArray(p.segments)||p.segments.length===0){ setErr(ta,errEl,'Profile needs at least 1 segment'); return null; }
