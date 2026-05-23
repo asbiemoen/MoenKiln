@@ -104,7 +104,7 @@ textarea.invalid{border:1.5px solid #b71c1c}
 </div>
 <div class="card" id="logcard" style="padding:10px 8px">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-    <span style="color:#ff7700;font-size:.88em;font-weight:700">🪵 Log</span>
+    <span style="color:#ff7700;font-size:.88em;font-weight:700">🗒️ Log</span>
     <button id="btn-dllog" class="rst" style="flex:0;padding:3px 10px;font-size:.78em" onclick="dlCsv('/api/log.csv','firing')">↓ Full log</button>
     <button id="btn-dldet" class="rst" style="flex:0;padding:3px 10px;font-size:.78em;margin-left:4px" onclick="dlCsv('/api/detail.csv','detail')">↓ Detail</button>
     <button class="rst" style="flex:0;padding:3px 10px;font-size:.78em;margin-left:4px" onclick="refreshLog()">↻</button>
@@ -155,7 +155,7 @@ textarea.invalid{border:1.5px solid #b71c1c}
 <div id="profErr" style="color:#ff4444;font-size:.8em;margin-bottom:6px;min-height:1.2em"></div>
 <div class="btns">
   <button class="rst" style="flex:0 0 auto;padding:10px 14px" onclick="loadProfiles()">&#8635; Reload</button>
-  <button class="go" id="btn-saveprof" onclick="saveProfiles()">&#8593; Save to device</button>
+  <button class="go" id="btn-saveprof" onclick="saveProfiles()" disabled>&#8593; Save to device</button>
 </div>
 </div>
 </div>
@@ -471,33 +471,35 @@ function setEditorJSON(obj){
   validateEditor();
 }
 
+function setSaveBtn(ok){document.getElementById('btn-saveprof').disabled=!ok;}
 function validateEditor(){
   var ta=document.getElementById('profJson');
   var errEl=document.getElementById('profErr');
   var raw=ta.value.trim();
-  if(!raw){ta.className='inp';errEl.textContent='';return null;}
+  if(!raw){ta.className='inp';errEl.textContent='';setSaveBtn(false);return null;}
   var parsed;
   try{ parsed=JSON.parse(raw); }
-  catch(e){ ta.className='inp invalid'; errEl.textContent='✘ '+e.message; return null; }
+  catch(e){ ta.className='inp invalid'; errEl.textContent='✘ '+e.message; setSaveBtn(false); return null; }
   // Strip id/name/builtin — only segments belong in the JSON
   var profiles=Array.isArray(parsed)?parsed:[parsed];
   profiles.forEach(function(p){delete p.id;delete p.name;delete p.builtin;});
   for(var pi=0;pi<profiles.length;pi++){
     var p=profiles[pi];
-    if(!Array.isArray(p.segments)||p.segments.length===0){ setErr(ta,errEl,'Profile needs at least 1 segment'); return null; }
-    if(p.segments.length>8){ setErr(ta,errEl,'Too many segments (max 8)'); return null; }
+    if(!Array.isArray(p.segments)||p.segments.length===0){ setErr(ta,errEl,'Profile needs at least 1 segment'); setSaveBtn(false); return null; }
+    if(p.segments.length>8){ setErr(ta,errEl,'Too many segments (max 8)'); setSaveBtn(false); return null; }
     for(var si=0;si<p.segments.length;si++){
       var s=p.segments[si];
-      if(typeof s.name!=='string'||!s.name.trim()){ setErr(ta,errEl,'Segment '+(si+1)+' missing name'); return null; }
-      if(s.name.length>11){ setErr(ta,errEl,'Segment name too long (max 11 chars)'); return null; }
-      if(typeof s.targetTemp!=='number'||s.targetTemp<100||s.targetTemp>1400){ setErr(ta,errEl,'Segment '+(si+1)+': targetTemp must be 100–1400'); return null; }
-      if(typeof s.ratePerHour!=='number'||s.ratePerHour<0||s.ratePerHour>9999){ setErr(ta,errEl,'Segment '+(si+1)+': ratePerHour must be 0–9999'); return null; }
-      if(typeof s.holdMin!=='number'||s.holdMin<0||s.holdMin>999){ setErr(ta,errEl,'Segment '+(si+1)+': holdMin must be 0–999'); return null; }
+      if(typeof s.name!=='string'||!s.name.trim()){ setErr(ta,errEl,'Segment '+(si+1)+' missing name'); setSaveBtn(false); return null; }
+      if(s.name.length>11){ setErr(ta,errEl,'Segment name too long (max 11 chars)'); setSaveBtn(false); return null; }
+      if(typeof s.targetTemp!=='number'||s.targetTemp<100||s.targetTemp>1400){ setErr(ta,errEl,'Segment '+(si+1)+': targetTemp must be 100–1400'); setSaveBtn(false); return null; }
+      if(typeof s.ratePerHour!=='number'||s.ratePerHour<0||s.ratePerHour>9999){ setErr(ta,errEl,'Segment '+(si+1)+': ratePerHour must be 0–9999'); setSaveBtn(false); return null; }
+      if(typeof s.holdMin!=='number'||s.holdMin<0||s.holdMin>999){ setErr(ta,errEl,'Segment '+(si+1)+': holdMin must be 0–999'); setSaveBtn(false); return null; }
     }
   }
   ta.className='inp valid';
   errEl.textContent='✓ Valid — '+profiles.length+' profile(s), '+profiles.reduce(function(a,p){return a+p.segments.length;},0)+' segments total';
   errEl.style.color='#44bb44';
+  setSaveBtn(true);
   return profiles;
 }
 
