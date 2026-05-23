@@ -87,7 +87,8 @@ uint8_t       eventCount = 0;
 uint8_t       displayScreen   = 0;    // 0=navn 1=temp 2=P:hh:mm 3=T:hh:mm
 unsigned long displayScreenMs = 0;
 bool          matrixDone      = false;
-bool    showingIP        = true;  // vis IP-adresse til første knapp trykkes
+bool          showingIP   = true;  // vis IP-adresse til noen besøker siden eller 30 s har gått
+unsigned long ipShowMs   = 0;     // tidsstempel for første WiFi-connect
 bool    serverReady      = false; // satt etter at HTTP-server er oppe
 bool    reportSent       = false; // hindrer dobbel utsending per brenning
 bool    manualRelay      = false; // manuell reléstyring i IDLE
@@ -735,7 +736,8 @@ void updateLED() {
     displayScreenMs = now;
   }
 
-  // IP-adresse ved oppstart: vis frem til dismissed
+  // IP-adresse ved oppstart: vis frem til noen besøker siden eller 30 s har gått
+  if (showingIP && ipShowMs > 0 && now - ipShowMs >= 30000UL) showingIP = false;
   if (showingIP && kilnState == IDLE) {
     updateIPDisplay();
     return;
@@ -805,6 +807,7 @@ void setupWiFi() {
   if (WiFi.status() == WL_CONNECTED) {
     httpServer.begin();
     serverReady = true;
+    ipShowMs = millis();
     Serial.print(F("IP: ")); Serial.println(WiFi.localIP());
   } else {
     Serial.println(F("WiFi failed"));
@@ -872,6 +875,7 @@ void handleHTTP() {
   if (req.startsWith("POST ")) showingIP = false;
 
   if (req.startsWith("GET / ")) {
+    showingIP = false;
     httpOK(client, "text/html");
     client.print(WEB_UI);
 
