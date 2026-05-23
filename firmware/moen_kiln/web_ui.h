@@ -450,8 +450,10 @@ function deleteProfile(globalIdx){
 }
 
 function setEditorJSON(obj){
+  var display=JSON.parse(JSON.stringify(obj));
+  delete display.name;   // name is shown in the Profile Name field, not in JSON
   var ta=document.getElementById('profJson');
-  ta.value=JSON.stringify(obj,null,2);
+  ta.value=JSON.stringify(display,null,2);
   validateEditor();
 }
 
@@ -468,8 +470,6 @@ function validateEditor(){
   for(var pi=0;pi<profiles.length;pi++){
     var p=profiles[pi];
     if(typeof p.id!=='string'||!p.id.trim()){ setErr(ta,errEl,'Profile missing "id"'); return null; }
-    if(typeof p.name!=='string'||!p.name.trim()){ setErr(ta,errEl,'Profile missing "name"'); return null; }
-    if(p.name.length>15){ setErr(ta,errEl,'name too long (max 15 chars)'); return null; }
     if(!Array.isArray(p.segments)||p.segments.length===0){ setErr(ta,errEl,'Profile needs at least 1 segment'); return null; }
     if(p.segments.length>8){ setErr(ta,errEl,'Too many segments (max 8)'); return null; }
     for(var si=0;si<p.segments.length;si++){
@@ -495,11 +495,11 @@ function saveProfiles(){
   var profiles=validateEditor();
   if(!profiles) return;
   var nameVal=document.getElementById('profName').value.trim();
-  // Apply name field to single-profile edits
-  if(nameVal && profiles.length===1){
+  if(!nameVal){ alert('Please fill in the Profile Name field.'); document.getElementById('profName').focus(); return; }
+  if(profiles.length===1){
     profiles[0].name=nameVal;
-    // Re-generate id only if it still looks like an auto-generated copy id
-    if(/-(copy\d*)$/.test(profiles[0].id)||profiles[0].id===''){
+    // Re-generate id from name if it looks auto-generated or is empty
+    if(/-(copy\d*)$/.test(profiles[0].id)||!profiles[0].id){
       profiles[0].id=nameToId(nameVal)||profiles[0].id;
     }
   }
