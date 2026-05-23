@@ -48,8 +48,8 @@ struct Event { uint16_t sec; uint8_t type; uint16_t temp; };
 
 // ── Timing ───────────────────────────────────────────────────────────────────
 #define SAMPLE_MS        1000UL
-#define RELAY_WINDOW_MS  10000UL
-#define RELAY_MIN_ON_MS  1000UL   // kortere pulser droppes – unngår rask SSR-sykling
+#define RELAY_WINDOW_MS  30000UL
+#define RELAY_MIN_ON_MS  10000UL  // kortere pulser droppes – unngår rask relé-sykling
 
 // ── Sikkerhet ────────────────────────────────────────────────────────────────
 #define MAX_TEMP_C       1300.0f

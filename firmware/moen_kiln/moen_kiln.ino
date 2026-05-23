@@ -103,7 +103,7 @@ uint16_t      firingMaxTemp  = 0; // per-firing max temp override; 0 = use MAX_T
 
 // ─────────────────────────────────────────────────────────────────────────────
 void setup() {
-  // Relay LOW first — pin floats high-Z before pinMode, SSR must not fire
+  // Relay LOW first — pin floats high-Z before pinMode, relay must not fire
   pinMode(PIN_RELAY, OUTPUT);
   digitalWrite(PIN_RELAY, LOW);
 
@@ -401,7 +401,7 @@ void updateRelay() {
     next = (now - relayWinMs < onTime);
   }
   if (next != lastRelay) {
-    Serial.print(F("SSR: ")); Serial.println(next ? F("ON") : F("OFF"));
+    Serial.print(F("Relay: ")); Serial.println(next ? F("ON") : F("OFF"));
     lastRelay = next;
   }
   digitalWrite(PIN_RELAY, next ? HIGH : LOW);
