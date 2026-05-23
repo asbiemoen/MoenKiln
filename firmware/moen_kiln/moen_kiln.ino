@@ -98,7 +98,6 @@ bool    sensorMissing    = false; // MAX31855 ikke tilkoblet eller feiler
 uint8_t sensorErrCount   = 0;    // konsekutive NaN-avlesninger – alarm ved 3
 unsigned long testTimeoutMs  = 0; // non-zero under Config Test: fires at firingStartMs + 4 h
 unsigned long lastWifiRetryMs = 0; // last time we attempted a reconnect
-uint16_t      firingMaxTemp  = 0; // per-firing max temp override; 0 = use MAX_TEMP_C
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -416,8 +415,7 @@ void updateStatusLED() {
 
 // ── Alarmer ───────────────────────────────────────────────────────────────────
 void checkAlarms() {
-  float maxT = (firingMaxTemp > 0) ? (float)firingMaxTemp : MAX_TEMP_C;
-  if (currentTemp > maxT) triggerAlarm(F("Max temperature exceeded"), EV_ERR_MAXTEMP);
+  if (currentTemp > MAX_TEMP_C) triggerAlarm(F("Max temperature exceeded"), EV_ERR_MAXTEMP);
 }
 
 void triggerAlarm(const __FlashStringHelper* alarmMsg, uint8_t evType) {
@@ -896,7 +894,6 @@ void handleHTTP() {
     if (firingStartMs > 0) { client.print(F(",\"elapsed\":")); client.print((millis() - firingStartMs) / 1000UL); }
     client.print(F(",\"firingId\":")); client.print(firingId);
     client.print(F(",\"sensorMissing\":")); client.print(sensorMissing ? "true" : "false");
-    if (firingMaxTemp > 0) { client.print(F(",\"maxTemp\":")); client.print(firingMaxTemp); }
     if (profile) {
       client.print(F(",\"profile\":\"")); client.print(profile->name); client.print('"');
       client.print(F(",\"segIdx\":")); client.print(segIdx);
@@ -1032,10 +1029,8 @@ void handleHTTP() {
     } else {
       int idx = constrain(formParam(body, "profile").toInt(), 0, (int)getTotalProfileCount() - 1);
       const Profile* p = getProfileByIndex((uint8_t)idx);
-      String mt = formParam(body, "maxtemp");
       if (p) {
         startProfile(p);
-        if (mt.length() > 0) firingMaxTemp = (uint16_t)constrain(mt.toInt(), 100, 1400);
         httpOK(client, "application/json"); client.print(F("{\"ok\":true}"));
       } else {
         httpOK(client, "application/json"); client.print(F("{\"ok\":false,\"error\":\"invalid profile\"}"));
