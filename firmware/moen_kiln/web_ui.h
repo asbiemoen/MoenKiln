@@ -70,13 +70,13 @@ textarea.invalid{border:1.5px solid #b71c1c}
 <body>
 <div id="overlay">
   <div id="modal">
-    <h2>Moen Kiln</h2>
+    <h2>🔥 Moen Kiln</h2>
     <p>Ready. Connect at</p>
     <div class="ip" id="modal-ip"></div>
     <button class="go" style="width:100%;padding:13px" onclick="dismiss()">OK</button>
   </div>
 </div>
-<h1>Moen Kiln</h1>
+<h1>🔥 Moen Kiln</h1>
 <div class="card">
   <div class="bigrow">
     <div class="big" id="T">--°C</div>
@@ -96,7 +96,7 @@ textarea.invalid{border:1.5px solid #b71c1c}
     <div class="pill" id="et"></div>
     <div class="pill" id="pill-nosensor" style="display:none;background:#5a1a1a;color:#ff6666">&#9888; No sensor</div>
   </div>
-  <div class="donebox" id="donebox">👍</div>
+  <div class="donebox" id="donebox">🎉</div>
 </div>
 <div class="card" style="padding:8px">
   <canvas id="cv" height="160"></canvas>
@@ -104,13 +104,13 @@ textarea.invalid{border:1.5px solid #b71c1c}
 </div>
 <div class="card" id="logcard" style="padding:10px 8px">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-    <span style="color:#ff7700;font-size:.88em;font-weight:700">Log</span>
+    <span style="color:#ff7700;font-size:.88em;font-weight:700">🪵 Log</span>
     <button class="rst" style="flex:0;padding:3px 10px;font-size:.78em" onclick="dlCsv('/api/log.csv','firing')">↓ Full log</button>
     <button class="rst" style="flex:0;padding:3px 10px;font-size:.78em;margin-left:4px" onclick="dlCsv('/api/detail.csv','detail')">↓ Detail</button>
     <button class="rst" style="flex:0;padding:3px 10px;font-size:.78em;margin-left:4px" onclick="refreshLog()">↻</button>
   </div>
   <div id="evtsec" style="margin-bottom:8px;display:none">
-    <div style="color:#666;font-size:.75em;margin-bottom:4px">Events</div>
+    <div style="color:#666;font-size:.75em;margin-bottom:4px">⚡ Events</div>
     <div id="evtlist"></div>
   </div>
   <div style="overflow-x:auto;max-height:280px;overflow-y:auto;-webkit-overflow-scrolling:touch">
@@ -128,22 +128,22 @@ textarea.invalid{border:1.5px solid #b71c1c}
   </div>
 </div>
 <div class="card">
-  <label>Firing profile</label>
+  <label>🎨 Firing profile</label>
   <select id="pr"></select>
   <input class="inp" id="maxtemp" type="number" min="100" max="1400" placeholder="Max temp °C (default 1300)">
   <div class="btns">
-    <button class="go" id="btn-go" onclick="go()">&#9654; Start</button>
-    <button class="stop" id="btn-stop" onclick="stp()">&#9632; Stop</button>
-    <button class="rst" id="btn-rst" onclick="rst()">&#8635; Reset</button>
+    <button class="go" id="btn-go" onclick="go()">🔥 Start</button>
+    <button class="stop" id="btn-stop" onclick="stp()">🛑 Stop</button>
+    <button class="rst" id="btn-rst" onclick="rst()">↺ Reset</button>
   </div>
 </div>
 <div class="card">
 <details id="profdetails">
-<summary>Firing Profiles</summary>
+<summary>🎨 Firing Profiles</summary>
 <div style="margin-top:10px">
-<p class="shead">Built-in profiles (read-only)</p>
+<p class="shead">🔒 Built-in profiles (read-only)</p>
 <div id="builtinList"></div>
-<p class="shead" style="margin-top:12px">Custom profiles</p>
+<p class="shead" style="margin-top:12px">✏️ Custom profiles</p>
 <div id="customList"></div>
 <div style="margin-top:10px">
 <p class="shead">Edit / add custom profile</p>
@@ -163,9 +163,9 @@ textarea.invalid{border:1.5px solid #b71c1c}
 </div>
 <div class="card">
 <details>
-<summary>Settings</summary>
+<summary>⚙️ Settings</summary>
 <div style="margin-top:10px">
-<p class="shead">Email (Resend)</p>
+<p class="shead">📧 Email (Resend)</p>
 <input class="inp" id="eto" type="email" placeholder="To: asbjorn@moenmedia.no">
 <input class="inp" id="ecc" type="email" placeholder="CC (optional)">
 <input class="inp" id="efrom" type="email" placeholder="From: miln@your-domain.com">
@@ -177,7 +177,7 @@ textarea.invalid{border:1.5px solid #b71c1c}
 <script>
 var cv=document.getElementById('cv'),cx=cv.getContext('2d'),T=[],SP=[];
 var sc={RAMP:'#ff7700',HOLD:'#44bb44',STOP:'#ff4444',ERR:'#ff4444',DONE:'#44bb44',IDLE:'#666',COOL:'#4499ff'};
-var sn={RAMP:'Heating up',HOLD:'Holding temperature',COOL:'Cooling down',DONE:'Complete',IDLE:'Ready',STOP:'Stopped',ERR:'Error'};
+var sn={RAMP:'🔺 Heating up',HOLD:'🎯 Holding temperature',COOL:'❄️ Cooling down',DONE:'✅ Complete',IDLE:'💤 Ready',STOP:'🛑 Stopped',ERR:'⚠️ Error'};
 var modalDismissed=false,lastFiringId=-1,segsData=[],openSeg=-1,logSegNames=[];
 function dlCsv(url,prefix){fetch(url).then(function(r){return r.blob();}).then(function(b){var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=prefix+'-'+new Date().toISOString().slice(0,10)+'.csv';a.click();URL.revokeObjectURL(a.href);});}
 function fmt(s){var h=Math.floor(s/3600),m=Math.floor((s%3600)/60);return h>0?h+'h '+m+'m':m+'m';}
