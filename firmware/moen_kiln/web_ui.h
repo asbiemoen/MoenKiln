@@ -362,6 +362,7 @@ function saveSet(){
 }
 // ── Profile editor ────────────────────────────────────────────────────────────
 var allProfiles=[];
+var _editingId=null; // id of the profile currently open in the editor (null = new copy)
 
 function loadProfiles(){
   fetch('/api/profiles').then(function(r){return r.json();}).then(function(data){
@@ -419,9 +420,8 @@ function renderProfileLists(){
 function escH(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 function copyProfile(p){
+  _editingId=null; // this is a new profile, not a replacement
   var copy=JSON.parse(JSON.stringify(p));
-  delete copy.builtin;
-  copy.id=copy.id+'-copy';
   copy.name=copy.name+' (copy)';
   document.getElementById('profName').value=copy.name;
   setEditorJSON(copy);
@@ -431,10 +431,9 @@ function copyProfile(p){
 }
 
 function editProfile(p){
-  var copy=JSON.parse(JSON.stringify(p));
-  delete copy.builtin;
-  document.getElementById('profName').value=copy.name;
-  setEditorJSON(copy);
+  _editingId=p.id; // track original id so we can replace the right profile
+  document.getElementById('profName').value=p.name;
+  setEditorJSON(p);
   document.getElementById('profdetails').open=true;
   document.getElementById('profName').scrollIntoView({behavior:'smooth',block:'nearest'});
   document.getElementById('profName').focus();
@@ -451,7 +450,9 @@ function deleteProfile(globalIdx){
 
 function setEditorJSON(obj){
   var display=JSON.parse(JSON.stringify(obj));
-  delete display.name;   // name is shown in the Profile Name field, not in JSON
+  delete display.name;    // shown in Profile Name field
+  delete display.id;      // auto-generated from name at save time
+  delete display.builtin; // internal flag, never shown
   var ta=document.getElementById('profJson');
   ta.value=JSON.stringify(display,null,2);
   validateEditor();
@@ -469,7 +470,6 @@ function validateEditor(){
   var profiles=Array.isArray(parsed)?parsed:[parsed];
   for(var pi=0;pi<profiles.length;pi++){
     var p=profiles[pi];
-    if(typeof p.id!=='string'||!p.id.trim()){ setErr(ta,errEl,'Profile missing "id"'); return null; }
     if(!Array.isArray(p.segments)||p.segments.length===0){ setErr(ta,errEl,'Profile needs at least 1 segment'); return null; }
     if(p.segments.length>8){ setErr(ta,errEl,'Too many segments (max 8)'); return null; }
     for(var si=0;si<p.segments.length;si++){
@@ -489,7 +489,11 @@ function validateEditor(){
 
 function setErr(ta,errEl,msg){ ta.className='inp invalid'; errEl.style.color='#ff4444'; errEl.textContent='✘ '+msg; }
 
-function nameToId(n){return n.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');}
+function nameToId(n){
+  return n.toLowerCase()
+    .replace(/æ/g,'ae').replace(/ø/g,'o').replace(/å/g,'a')
+    .replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+}
 
 function saveProfiles(){
   var profiles=validateEditor();
@@ -498,15 +502,16 @@ function saveProfiles(){
   if(!nameVal){ alert('Please fill in the Profile Name field.'); document.getElementById('profName').focus(); return; }
   if(profiles.length===1){
     profiles[0].name=nameVal;
-    // Re-generate id from name if it looks auto-generated or is empty
-    if(/-(copy\d*)$/.test(profiles[0].id)||!profiles[0].id){
-      profiles[0].id=nameToId(nameVal)||profiles[0].id;
-    }
+    profiles[0].id=nameToId(nameVal)||('profile-'+Date.now()); // always auto-generate from name
   }
-  // Merge: keep existing customs that are not being replaced, then add/update edited ones
+  // Merge: remove old version (by _editingId) and any clash on same new id, then append
   var existing=allProfiles.filter(function(p){return !p.builtin;});
-  var editedIds=profiles.map(function(p){return p.id;});
-  var kept=existing.filter(function(p){return editedIds.indexOf(p.id)===-1;});
+  var newId=profiles[0]&&profiles[0].id;
+  var kept=existing.filter(function(p){
+    if(_editingId && p.id===_editingId) return false; // remove the profile being replaced
+    if(p.id===newId) return false;                    // remove any id clash
+    return true;
+  });
   var merged=kept.concat(profiles);
   if(merged.length>5){ alert('Too many custom profiles (max 5 total)'); return; }
   postCustoms(merged);
@@ -522,6 +527,7 @@ function postCustoms(customs){
     .then(function(r){return r.json();})
     .then(function(d){
       if(d.ok){
+        _editingId=null;
         document.getElementById('profName').value='';
         document.getElementById('profJson').value='';
         document.getElementById('profErr').textContent='';
