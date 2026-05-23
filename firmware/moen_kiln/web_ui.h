@@ -59,23 +59,9 @@ details summary{cursor:pointer;color:#ff7700;font-size:.95em;touch-action:manipu
 .profdel{background:#5a1a1a;color:#ff6666}
 textarea.valid{border:1.5px solid #2e7d32}
 textarea.invalid{border:1.5px solid #b71c1c}
-#overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:100;align-items:center;justify-content:center}
-#overlay.show{display:flex}
-#modal{background:#222;border-radius:14px;padding:28px 24px;max-width:300px;width:90%;text-align:center}
-#modal h2{color:#ff7700;margin-bottom:8px}
-#modal .ip{font-size:1.5em;font-weight:700;margin:12px 0 20px;letter-spacing:.05em}
-#modal p{color:#888;font-size:.85em;margin-bottom:16px}
 </style>
 </head>
 <body>
-<div id="overlay">
-  <div id="modal">
-    <h2>🔥 Moen Kiln</h2>
-    <p>Ready. Connect at</p>
-    <div class="ip" id="modal-ip"></div>
-    <button class="go" style="width:100%;padding:13px" onclick="dismiss()">OK</button>
-  </div>
-</div>
 <h1>🔥 Moen Kiln</h1>
 <div class="card">
   <div class="bigrow">
@@ -178,14 +164,9 @@ textarea.invalid{border:1.5px solid #b71c1c}
 var cv=document.getElementById('cv'),cx=cv.getContext('2d'),T=[],SP=[];
 var sc={RAMP:'#ff7700',HOLD:'#44bb44',STOP:'#ff4444',ERR:'#ff4444',DONE:'#44bb44',IDLE:'#666',COOL:'#4499ff'};
 var sn={RAMP:'🔺 Heating up',HOLD:'🎯 Holding temperature',COOL:'❄️ Cooling down',DONE:'✅ Complete',IDLE:'💤 Ready',STOP:'🛑 Stopped',ERR:'⚠️ Error'};
-var modalDismissed=false,lastFiringId=-1,segsData=[],openSeg=-1,logSegNames=[];
+var lastFiringId=-1,segsData=[],openSeg=-1,logSegNames=[];
 function dlCsv(url,prefix){fetch(url).then(function(r){return r.blob();}).then(function(b){var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=prefix+'-'+new Date().toISOString().slice(0,10)+'.csv';a.click();URL.revokeObjectURL(a.href);});}
 function fmt(s){var h=Math.floor(s/3600),m=Math.floor((s%3600)/60);return h>0?h+'h '+m+'m':m+'m';}
-function dismiss(){
-  document.getElementById('overlay').classList.remove('show');
-  modalDismissed=true;
-  fetch('/api/dismiss',{method:'POST'});
-}
 function poll(){
 fetch('/api/status').then(function(r){return r.json();}).then(function(d){
   if(d.firingId!==undefined&&d.firingId!==lastFiringId){
@@ -253,11 +234,6 @@ fetch('/api/status').then(function(r){return r.json();}).then(function(d){
   document.getElementById('pill-nosensor').style.display=d.sensorMissing?'':'none';
   document.getElementById('btn-stop').disabled=!active;
   document.getElementById('btn-rst').disabled=(d.state==='IDLE'||active);
-
-  if(d.showingIP&&!modalDismissed){
-    document.getElementById('modal-ip').textContent=window.location.hostname;
-    document.getElementById('overlay').classList.add('show');
-  }
 
   T.push(d.temp);SP.push(d.setpoint);
   if(T.length>120){T.shift();SP.shift();}
