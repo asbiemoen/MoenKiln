@@ -146,7 +146,10 @@ textarea.invalid{border:1.5px solid #b71c1c}
 <p class="shead" style="margin-top:12px">Custom profiles</p>
 <div id="customList"></div>
 <div style="margin-top:10px">
-<p class="shead">Edit / add custom profile (JSON)</p>
+<p class="shead">Edit / add custom profile</p>
+<label style="font-size:.8em;color:#888;margin-bottom:4px;display:block">Profile Name</label>
+<input class="inp" id="profName" type="text" placeholder="e.g. My Glaze" maxlength="15" style="margin-bottom:8px">
+<label style="font-size:.8em;color:#888;margin-bottom:4px;display:block">JSON</label>
 <textarea id="profJson" class="inp" rows="18" spellcheck="false" style="font-family:monospace;font-size:.73em;resize:vertical;white-space:pre"></textarea>
 <div id="profErr" style="color:#ff4444;font-size:.8em;margin-bottom:6px;min-height:1.2em"></div>
 <div class="btns">
@@ -420,17 +423,21 @@ function copyProfile(p){
   delete copy.builtin;
   copy.id=copy.id+'-copy';
   copy.name=copy.name+' (copy)';
+  document.getElementById('profName').value=copy.name;
   setEditorJSON(copy);
   document.getElementById('profdetails').open=true;
-  document.getElementById('profJson').scrollIntoView({behavior:'smooth',block:'nearest'});
+  document.getElementById('profName').scrollIntoView({behavior:'smooth',block:'nearest'});
+  document.getElementById('profName').focus();
 }
 
 function editProfile(p){
   var copy=JSON.parse(JSON.stringify(p));
   delete copy.builtin;
+  document.getElementById('profName').value=copy.name;
   setEditorJSON(copy);
   document.getElementById('profdetails').open=true;
-  document.getElementById('profJson').scrollIntoView({behavior:'smooth',block:'nearest'});
+  document.getElementById('profName').scrollIntoView({behavior:'smooth',block:'nearest'});
+  document.getElementById('profName').focus();
 }
 
 function deleteProfile(globalIdx){
@@ -482,9 +489,20 @@ function validateEditor(){
 
 function setErr(ta,errEl,msg){ ta.className='inp invalid'; errEl.style.color='#ff4444'; errEl.textContent='✘ '+msg; }
 
+function nameToId(n){return n.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');}
+
 function saveProfiles(){
   var profiles=validateEditor();
   if(!profiles) return;
+  var nameVal=document.getElementById('profName').value.trim();
+  // Apply name field to single-profile edits
+  if(nameVal && profiles.length===1){
+    profiles[0].name=nameVal;
+    // Re-generate id only if it still looks like an auto-generated copy id
+    if(/-(copy\d*)$/.test(profiles[0].id)||profiles[0].id===''){
+      profiles[0].id=nameToId(nameVal)||profiles[0].id;
+    }
+  }
   // Merge: keep existing customs that are not being replaced, then add/update edited ones
   var existing=allProfiles.filter(function(p){return !p.builtin;});
   var editedIds=profiles.map(function(p){return p.id;});
@@ -503,8 +521,13 @@ function postCustoms(customs){
   fetch('/api/profiles',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(clean)})
     .then(function(r){return r.json();})
     .then(function(d){
-      if(d.ok){ loadProfiles(); }
-      else{ alert('Error: '+(d.error||'unknown')); }
+      if(d.ok){
+        document.getElementById('profName').value='';
+        document.getElementById('profJson').value='';
+        document.getElementById('profErr').textContent='';
+        document.getElementById('profJson').className='inp';
+        loadProfiles();
+      } else{ alert('Error: '+(d.error||'unknown')); }
     }).catch(function(){});
 }
 
