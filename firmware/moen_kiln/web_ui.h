@@ -69,18 +69,20 @@ textarea.invalid{border:1.5px solid #b71c1c}
     <div class="trend" id="trend">→</div>
   </div>
   <div class="phase" id="ph">---</div>
-  <div id="segtl" class="segtl"></div>
-  <div id="segdetail" class="segdetail"></div>
-  <div class="pbar" style="margin-top:8px"><div class="pfill" id="pg"></div></div>
-  <div class="pills">
-    <div class="pill">Rate: <b id="rate">--</b>°C/h</div>
-    <div class="pill">Duty cycle: <b id="pid">--</b>%</div>
-    <div class="pill" id="pill-stgt" style="display:none">Segment target: <b id="stgt">--</b>°C</div>
-    <div class="pill" id="pill-seta" style="display:none">Time to target: <b id="seta">--</b></div>
-    <div class="pill" id="rem"></div>
-    <div class="pill" id="tot"></div>
-    <div class="pill" id="et"></div>
-    <div class="pill" id="pill-nosensor" style="display:none;background:#5a1a1a;color:#ff6666">&#9888; No sensor</div>
+  <div class="pill" id="pill-nosensor" style="display:none;background:#5a1a1a;color:#ff6666;margin-top:8px">&#9888; No sensor</div>
+  <div id="firing-details" style="display:none">
+    <div id="segtl" class="segtl"></div>
+    <div id="segdetail" class="segdetail"></div>
+    <div class="pbar" style="margin-top:8px"><div class="pfill" id="pg"></div></div>
+    <div class="pills">
+      <div class="pill">Rate: <b id="rate">--</b>°C/h</div>
+      <div class="pill">Duty cycle: <b id="pid">--</b>%</div>
+      <div class="pill" id="pill-stgt" style="display:none">Segment target: <b id="stgt">--</b>°C</div>
+      <div class="pill" id="pill-seta" style="display:none">Time to target: <b id="seta">--</b></div>
+      <div class="pill" id="rem"></div>
+      <div class="pill" id="tot"></div>
+      <div class="pill" id="et"></div>
+    </div>
   </div>
   <div class="donebox" id="donebox">🎉</div>
 </div>
@@ -116,7 +118,6 @@ textarea.invalid{border:1.5px solid #b71c1c}
 <div class="card">
   <label>🎨 Firing profile</label>
   <select id="pr"></select>
-  <input class="inp" id="maxtemp" type="number" min="100" max="1400" placeholder="Max temp °C (default 1300)">
   <div class="btns">
     <button class="go" id="btn-go" onclick="go()">🔥 Start</button>
     <button class="stop" id="btn-stop" onclick="stp()">🛑 Stop</button>
@@ -230,6 +231,7 @@ fetch('/api/status').then(function(r){return r.json();}).then(function(d){
   document.getElementById('donebox').style.display=(d.state==='DONE')?'block':'none';
 
   var active=(d.state==='RAMP'||d.state==='HOLD'||d.state==='COOL');
+  document.getElementById('firing-details').style.display=active?'':'none';
   document.getElementById('btn-go').disabled=active||(d.sensorMissing===true);
   document.getElementById('pill-nosensor').style.display=d.sensorMissing?'':'none';
   document.getElementById('btn-stop').disabled=!active;
@@ -326,7 +328,7 @@ function refreshLog(){
     el.innerHTML=html;
   }).catch(function(){});
 }
-function go(){var mt=document.getElementById('maxtemp').value;var body='profile='+document.getElementById('pr').value+(mt?'&maxtemp='+parseInt(mt):'');fetch('/api/start',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:body}).then(function(r){return r.json();}).then(function(d){if(!d.ok)alert('Cannot start: '+(d.error||'unknown error'));}).catch(function(){});}
+function go(){var body='profile='+document.getElementById('pr').value;fetch('/api/start',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:body}).then(function(r){return r.json();}).then(function(d){if(!d.ok)alert('Cannot start: '+(d.error||'unknown error'));}).catch(function(){});}
 function stp(){if(!confirm('Stop the firing?'))return;fetch('/api/stop',{method:'POST'});}
 function rst(){fetch('/api/reset',{method:'POST'});}
 fetch('/api/settings').then(function(r){return r.json();}).then(function(d){
