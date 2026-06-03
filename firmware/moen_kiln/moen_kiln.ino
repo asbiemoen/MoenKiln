@@ -96,8 +96,8 @@ bool    manualRelay      = false; // manuell reléstyring i IDLE
 uint8_t firingId         = 0;    // økes ved ny brenning – brukes av GUI til å tømme graf
 bool    cancelHeld       = false; // startknapp holdes inne under brenning
 unsigned long stoppedMs  = 0;    // tidsstempel for "stanset"-bekreftelse på display
-bool    sensorMissing    = false; // MAX31855 ikke tilkoblet eller feiler
-uint8_t sensorErrCount   = 0;    // konsekutive NaN-avlesninger – alarm ved 3
+bool     sensorMissing = false; // MAX31855 ikke tilkoblet eller feiler
+uint32_t tcWindow      = 0xFFFFF; // siste 20 avlesninger, bit 1=gyldig 0=ERR (init: anta OK)
 unsigned long testTimeoutMs  = 0; // non-zero under Config Test: fires at firingStartMs + 4 h
 unsigned long lastWifiRetryMs = 0; // last time we attempted a reconnect
 
@@ -194,21 +194,26 @@ void loop() {
 // ── Temperaturlesing ──────────────────────────────────────────────────────────
 void readTemp() {
   double t = tc.readCelsius();
-  if (isnan(t)) {
-    sensorErrCount++;
-    Serial.print(F("TC: bad read ")); Serial.print(sensorErrCount); Serial.println(F("/3"));
+  bool valid = !isnan(t);
+
+  // Sliding window: 20 siste avlesninger, bit=1 er gyldig. Alarm hvis <3 gyldige av 20.
+  tcWindow = ((tcWindow << 1) | (valid ? 1u : 0u)) & 0xFFFFF;
+  uint8_t goodCount = (uint8_t)__builtin_popcount(tcWindow);
+
+  if (!valid) {
+    Serial.print(F("TC: bad read (")); Serial.print(goodCount); Serial.println(F("/20 good)"));
     if (kilnState == RAMPING || kilnState == HOLDING || kilnState == FREE_COOL)
       forceLogPoint();
-    if (sensorErrCount >= 3) {
-      sensorMissing = true;
-      if (kilnState != IDLE) triggerAlarm(F("Thermocouple error"));
-    }
-    return;
   }
-  sensorErrCount = 0;
-  sensorMissing = false;
-  currentTemp = (float)t;
-  if (currentTemp > peakTemp) peakTemp = currentTemp;
+
+  sensorMissing = (goodCount < 3);
+  if (sensorMissing && kilnState != IDLE)
+    triggerAlarm(F("Thermocouple error"));
+
+  if (valid) {
+    currentTemp = (float)t;
+    if (currentTemp > peakTemp) peakTemp = currentTemp;
+  }
 }
 
 // ── Hoved-tick ────────────────────────────────────────────────────────────────
@@ -466,6 +471,12 @@ const char* eventStr(uint8_t t) {
   }
 }
 
+const char* secToHMS(uint16_t sec) {
+  static char buf[9];
+  snprintf(buf, sizeof(buf), "%02u:%02u:%02u", sec / 3600, (sec % 3600) / 60, sec % 60);
+  return buf;
+}
+
 const char* segName(uint8_t rawIdx) {
   uint8_t si = rawIdx & 0x7F;
   if (profile && si < profile->segCount) return profile->segments[si].name;
@@ -502,14 +513,13 @@ void writeDetailLogPoint(unsigned long now, uint16_t tempRaw) {
   if (logCount < LOG_SIZE) logCount++;
 }
 
-// Tvungen umiddelbar logging til begge buffere – brukes ved TC-feil
+// Umiddelbar logging av TC-feil til detailloggen. Fullloggen berøres ikke —
+// den skal kun inneholde jevne 5-minutters intervaller med gyldige temp-verdier.
 void forceLogPoint() {
   if (firingStartMs == 0) return;
   unsigned long now = millis();
   writeDetailLogPoint(now, 0xFFFF);  // 0xFFFF = TC error sentinel
-  writeFullLogPoint(now, 0xFFFF);
-  lastLogMs     = now;   // reset intervall så neste normale punkt ikke dobler
-  lastFullLogMs = now;
+  lastLogMs = now;  // reset slik at neste normale punkt ikke dobler
 }
 
 void logData() {
@@ -935,15 +945,16 @@ void handleHTTP() {
     client.println(F("Content-Disposition: attachment; filename=\"detail-log.csv\""));
     client.println(F("Connection: close"));
     client.println();
-    client.println(F("sec,temp,setpoint,relay,duty_pct,comment"));
+    client.println(F("sec;hh:mm:ss;temp;setpoint;relay;duty_pct;comment"));
     uint16_t dstart = (logCount == LOG_SIZE) ? logHead % LOG_SIZE : 0;
     for (uint16_t i = 0; i < logCount; i++) {
       const DataPoint& dp = logBuf[(dstart + i) % LOG_SIZE];
-      client.print(dp.sec); client.print(',');
-      if (dp.temp == 0xFFFF) client.print(F("ERR")); else client.print(dp.temp); client.print(',');
-      client.print(dp.sp); client.print(',');
-      client.print((dp.segIdx & 0x80) ? 1 : 0); client.print(',');
-      client.print(dp.pid); client.print(',');
+      client.print(dp.sec); client.print(';');
+      client.print(secToHMS(dp.sec)); client.print(';');
+      if (dp.temp == 0xFFFF) client.print(F("ERR")); else client.print(dp.temp); client.print(';');
+      client.print(dp.sp); client.print(';');
+      client.print((dp.segIdx & 0x80) ? 1 : 0); client.print(';');
+      client.print(dp.pid); client.print(';');
       client.println(segName(dp.segIdx));
     }
 
@@ -953,27 +964,30 @@ void handleHTTP() {
     client.println(F("Content-Disposition: attachment; filename=\"firing.csv\""));
     client.println(F("Connection: close"));
     client.println();
-    client.println(F("sec,temp,setpoint,relay,duty_pct,comment"));
+    client.println(F("sec;hh:mm:ss;temp;setpoint;relay;duty_pct;comment"));
     uint16_t fstart = (fullLogCount == FULL_LOG_SIZE) ? fullLogHead % FULL_LOG_SIZE : 0;
     uint8_t  ei = 0;
     for (uint16_t i = 0; i < fullLogCount; i++) {
       const DataPoint& dp = fullLogBuf[(fstart + i) % FULL_LOG_SIZE];
       while (ei < eventCount && eventLog[ei].sec <= dp.sec) {
-        client.print(eventLog[ei].sec); client.print(',');
-        client.print(eventLog[ei].temp); client.print(F(",,,,"));
+        client.print(eventLog[ei].sec); client.print(';');
+        client.print(secToHMS(eventLog[ei].sec)); client.print(';');
+        client.print(eventLog[ei].temp); client.print(F(";;;;"));
         client.println(eventStr(eventLog[ei].type));
         ei++;
       }
-      client.print(dp.sec); client.print(',');
-      if (dp.temp == 0xFFFF) client.print(F("ERR")); else client.print(dp.temp); client.print(',');
-      client.print(dp.sp); client.print(',');
-      client.print((dp.segIdx & 0x80) ? 1 : 0); client.print(',');
-      client.print(dp.pid); client.print(',');
+      client.print(dp.sec); client.print(';');
+      client.print(secToHMS(dp.sec)); client.print(';');
+      if (dp.temp == 0xFFFF) client.print(F("ERR")); else client.print(dp.temp); client.print(';');
+      client.print(dp.sp); client.print(';');
+      client.print((dp.segIdx & 0x80) ? 1 : 0); client.print(';');
+      client.print(dp.pid); client.print(';');
       client.println(segName(dp.segIdx));
     }
     while (ei < eventCount) {
-      client.print(eventLog[ei].sec); client.print(',');
-      client.print(eventLog[ei].temp); client.print(F(",,,,"));
+      client.print(eventLog[ei].sec); client.print(';');
+      client.print(secToHMS(eventLog[ei].sec)); client.print(';');
+      client.print(eventLog[ei].temp); client.print(F(";;;;"));
       client.println(eventStr(eventLog[ei].type));
       ei++;
     }
