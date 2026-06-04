@@ -1,5 +1,5 @@
 // Moen Kiln – Arduino Uno R4 WiFi
-// April 2026
+// June 2026
 
 #include <SPI.h>
 #include <Adafruit_MAX31855.h>
@@ -12,6 +12,7 @@
 #include "web_ui.h"
 #include "led_display.h"
 #include "email.h"
+#include "cloud_log.h"
 
 void triggerAlarm(const __FlashStringHelper* alarmMsg, uint8_t evType = EV_ERR_TERMO);
 
@@ -146,6 +147,7 @@ void setup() {
   loadPersistentLog();
   loadCustomProfiles();
   setupWiFi();
+  cloudLogInit();
 
   relayWinMs = millis();
   pidLastMs  = millis();
@@ -180,6 +182,7 @@ void loop() {
     tick();
     printStatus();
     logData();
+    maybeSendCloudPoint(now);
     updateLED();
 
   }
@@ -898,6 +901,8 @@ void handleHTTP() {
     if (firingStartMs > 0) { client.print(F(",\"elapsed\":")); client.print((millis() - firingStartMs) / 1000UL); }
     client.print(F(",\"firingId\":")); client.print(firingId);
     client.print(F(",\"sensorMissing\":")); client.print(sensorMissing ? "true" : "false");
+    client.print(F(",\"cloudEnabled\":")); client.print(cloudLogEnabled() ? "true" : "false");
+    client.print(F(",\"cloudFiringId\":")); client.print(cloudFiringId());
     if (profile) {
       client.print(F(",\"profile\":\"")); client.print(profile->name); client.print('"');
       client.print(F(",\"segIdx\":")); client.print(segIdx);
@@ -1090,6 +1095,23 @@ void handleHTTP() {
     saveEmailConfig(key, to, cc, frm);
     httpOK(client, "application/json"); client.print(F("{\"ok\":true}"));
 
+  } else if (req.startsWith("GET /api/cloudlog")) {
+    httpOK(client, "application/json");
+    client.print(F("{\"enabled\":"));
+    client.print(cloudLogEnabled() ? "true" : "false");
+    client.print(F(",\"firingId\":"));
+    client.print(cloudFiringId());
+#ifdef CLOUD_DASHBOARD_URL
+    client.print(F(",\"dashboardUrl\":\""));
+    client.print(F(CLOUD_DASHBOARD_URL));
+    client.print('"');
+#endif
+    client.print('}');
+
+  } else if (req.startsWith("POST /api/cloudlog")) {
+    setCloudLogEnabled(formParam(body, "enabled") == "1");
+    httpOK(client, "application/json"); client.print(F("{\"ok\":true}"));
+
   } else {
     client.println(F("HTTP/1.1 404 Not Found\r\nConnection: close\r\n"));
   }
@@ -1171,6 +1193,7 @@ void startProfile(const Profile* p) {
   readTemp();
   if (sensorMissing) { kilnState = IDLE; return; }
   firingId++;
+  cloudLogNewFiring();
   EEPROM.update(EEPROM_PLOG_FLAG, 0);
   EEPROM.update(EEPROM_ELOG_FLAG, 0);
   digitalWrite(PIN_RELAY, HIGH); delay(500); digitalWrite(PIN_RELAY, LOW);
