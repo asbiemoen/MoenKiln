@@ -38,10 +38,10 @@ app.http('auth-request', {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: 'Moen Kiln Cloud Log <post@kirkepasset.no>',
+          from: 'MilnCloudLog <post@kirkepasset.no>',
           to: email,
-          subject: 'Logg inn – Moen Kiln Cloud Log',
-          html: `<p>Klikk lenken for å logge inn i Moen Kiln Cloud Log:</p>
+          subject: 'Logg inn – MilnCloudLog',
+          html: `<p>Klikk lenken for å logge inn i MilnCloudLog:</p>
                  <p><a href="${link}">${link}</a></p>
                  <p>Lenken er gyldig i 24 timer.</p>`,
         }),
