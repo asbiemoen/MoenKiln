@@ -59,10 +59,26 @@ details summary{cursor:pointer;color:#ff7700;font-size:.95em;touch-action:manipu
 .profdel{background:#5a1a1a;color:#ff6666}
 textarea.valid{border:1.5px solid #2e7d32}
 textarea.invalid{border:1.5px solid #b71c1c}
+.trow{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.trow-label{font-size:.85em;color:#888}
+.tgl{position:relative;display:inline-block;width:36px;height:20px}
+.tgl input{opacity:0;width:0;height:0}
+.tsl{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#444;border-radius:20px;transition:.2s}
+.tsl:before{position:absolute;content:"";height:14px;width:14px;left:3px;bottom:3px;background:#aaa;border-radius:50%;transition:.2s}
+input:checked+.tsl{background:#2e7d32}
+input:checked+.tsl:before{transform:translateX(16px);background:#fff}
+.trow-status{font-size:.82em;color:#666}
 </style>
 </head>
 <body>
-<h1>🔥 Moen Kiln</h1>
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+  <h1 style="margin:0">🔥 Moen Kiln</h1>
+  <div class="trow" style="margin:0">
+    <span class="trow-label">TC log</span>
+    <label class="tgl"><input type="checkbox" id="tc-toggle" onchange="toggleTcLog(this.checked)"><span class="tsl"></span></label>
+    <span class="trow-status" id="tc-status">○ Off</span>
+  </div>
+</div>
 <div class="card">
   <div class="bigrow">
     <div class="big" id="T">--°C</div>
@@ -254,11 +270,22 @@ fetch('/api/status').then(function(r){return r.json();}).then(function(d){
   document.getElementById('btn-stop').disabled=!active;
   document.getElementById('btn-rst').disabled=(d.state==='IDLE'||active);
 
+  if(d.tcLogActive!==undefined){
+    document.getElementById('tc-toggle').checked=d.tcLogActive;
+    var tcs=document.getElementById('tc-status');
+    if(!d.tcLogActive){tcs.textContent='○ Off';tcs.style.color='#666';}
+    else if(d.tcLogError){tcs.textContent='⚠ Upload error';tcs.style.color='#ff9933';}
+    else{tcs.textContent='● Logging';tcs.style.color='#44bb44';}
+  }
+
   T.push(d.temp);SP.push(d.setpoint);
   if(T.length>120){T.shift();SP.shift();}
   draw();
 }).catch(function(){});
 setTimeout(poll,5000);
+}
+function toggleTcLog(on){
+  fetch('/api/tclog',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'state='+(on?'1':'0')});
 }
 function draw(){
 var w=cv.offsetWidth||300,h=160;

@@ -1,5 +1,5 @@
 // Moen Kiln – Arduino Uno R4 WiFi
-// June 2026
+// 2026-06-04
 
 #include <SPI.h>
 #include <Adafruit_MAX31855.h>
@@ -13,6 +13,7 @@
 #include "led_display.h"
 #include "email.h"
 #include "cloud_log.h"
+#include "tc_log.h"
 
 void triggerAlarm(const __FlashStringHelper* alarmMsg, uint8_t evType = EV_ERR_TERMO);
 
@@ -98,6 +99,8 @@ bool    cancelHeld       = false; // startknapp holdes inne under brenning
 unsigned long stoppedMs  = 0;    // tidsstempel for "stanset"-bekreftelse på display
 bool     sensorMissing = false; // MAX31855 ikke tilkoblet eller feiler
 uint32_t tcWindow      = 0xFFFFF; // siste 20 avlesninger, bit 1=gyldig 0=ERR (init: anta OK)
+bool     tcLogActive   = false; // kontinuerlig TC-logging til Azure
+bool     tcLogError    = false; // siste Azure-batch feilet
 unsigned long testTimeoutMs  = 0; // non-zero under Config Test: fires at firingStartMs + 4 h
 unsigned long lastWifiRetryMs = 0; // last time we attempted a reconnect
 
@@ -183,6 +186,7 @@ void loop() {
     printStatus();
     logData();
     maybeSendCloudPoint(now);
+    tcLogTick(now);
     updateLED();
 
   }
@@ -913,6 +917,8 @@ void handleHTTP() {
     client.print(F(",\"sensorMissing\":")); client.print(sensorMissing ? "true" : "false");
     client.print(F(",\"cloudEnabled\":")); client.print(cloudLogEnabled() ? "true" : "false");
     client.print(F(",\"cloudFiringId\":")); client.print(cloudFiringId());
+    client.print(F(",\"tcLogActive\":")); client.print(tcLogActive ? "true" : "false");
+    client.print(F(",\"tcLogError\":")); client.print(tcLogError ? "true" : "false");
     if (profile) {
       client.print(F(",\"profile\":\"")); client.print(profile->name); client.print('"');
       client.print(F(",\"segIdx\":")); client.print(segIdx);
@@ -1059,6 +1065,10 @@ void handleHTTP() {
         httpOK(client, "application/json"); client.print(F("{\"ok\":false,\"error\":\"invalid profile\"}"));
       }
     }
+
+  } else if (req.startsWith("POST /api/tclog")) {
+    tcLogSetActive(formParam(body, "state") == "1");
+    httpOK(client, "application/json"); client.print(F("{\"ok\":true}"));
 
   } else if (req.startsWith("POST /api/relay")) {
     if (kilnState == IDLE) manualRelay = (formParam(body, "state") == "1");
