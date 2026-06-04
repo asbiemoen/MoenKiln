@@ -73,10 +73,17 @@ input:checked+.tsl:before{transform:translateX(16px);background:#fff}
 <body>
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
   <h1 style="margin:0">🔥 Moen Kiln</h1>
-  <div class="trow" style="margin:0">
-    <span class="trow-label">TC log</span>
-    <label class="tgl"><input type="checkbox" id="tc-toggle" onchange="toggleTcLog(this.checked)"><span class="tsl"></span></label>
-    <span class="trow-status" id="tc-status">○ Off</span>
+  <div style="display:flex;gap:14px;align-items:center">
+    <div class="trow" style="margin:0">
+      <span class="trow-label">TC log</span>
+      <label class="tgl"><input type="checkbox" id="tc-toggle" onchange="toggleTcLog(this.checked)"><span class="tsl"></span></label>
+      <span class="trow-status" id="tc-status">○ Off</span>
+    </div>
+    <div class="trow" style="margin:0">
+      <span class="trow-label">&#x2601;&#xFE0F;</span>
+      <label class="tgl"><input type="checkbox" id="cloud-toggle" onchange="setCloud(this.checked?1:0)"><span class="tsl"></span></label>
+      <span class="trow-status" id="cloud-toggle-status">○ Off</span>
+    </div>
   </div>
 </div>
 <div class="card">
@@ -144,12 +151,8 @@ input:checked+.tsl:before{transform:translateX(16px);background:#fff}
 <details id="clouddetails">
 <summary>☁️ Cloud Logging</summary>
 <div style="margin-top:10px">
-  <div id="cloud-status" class="shead" style="min-height:1.2em">Laster status…</div>
-  <div class="btns" style="margin-top:8px">
-    <button class="go" onclick="setCloud(1)">Enable</button>
-    <button class="stop" onclick="setCloud(0)">Disable</button>
-  </div>
-  <div style="margin-top:10px">
+  <div id="cloud-status" class="shead" style="min-height:1.2em;color:#888;font-size:.85em"></div>
+  <div style="margin-top:8px">
     <a id="cloud-link" href="#" target="_blank" style="color:#ff7700;font-size:.9em">
       ☁️ Open Cloud Dashboard →
     </a>
@@ -630,8 +633,12 @@ document.getElementById('profName').addEventListener('input',function(){
 
 function refreshCloud(){
   fetch('/api/cloudlog').then(function(r){return r.json();}).then(function(d){
+    var tog=document.getElementById('cloud-toggle');
+    if(tog) tog.checked=!!d.enabled;
+    var ts=document.getElementById('cloud-toggle-status');
+    if(ts) ts.textContent=d.enabled?'● On':'○ Off';
     var s=document.getElementById('cloud-status');
-    if(s) s.textContent='Status: '+(d.enabled?'enabled ✓':'disabled')+'  ·  Firing ID: #'+d.firingId;
+    if(s) s.textContent='Firing ID: #'+d.firingId;
     var lnk=document.getElementById('cloud-link');
     if(lnk&&d.dashboardUrl){lnk.href=d.dashboardUrl;lnk.style.opacity=1;}
     else if(lnk){lnk.style.opacity=.35;}
