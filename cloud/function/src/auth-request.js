@@ -24,7 +24,7 @@ app.http('auth-request', {
         [token, expires]
       );
     } catch (err) {
-      ctx.log.error('Token insert:', err.message);
+      ctx.error('Token insert:', err.message);
       return { status: 500, body: 'Server error' };
     }
 
@@ -46,9 +46,9 @@ app.http('auth-request', {
                  <p>Lenken er gyldig i 24 timer.</p>`,
         }),
       });
-      if (!res.ok) ctx.log.error('Resend error:', await res.text());
+      if (!res.ok) ctx.error('Resend error:', await res.text());
     } catch (err) {
-      ctx.log.error('Email send:', err.message);
+      ctx.error('Email send:', err.message);
     }
 
     return ok;
