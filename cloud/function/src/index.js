@@ -4,3 +4,4 @@ require('./auth-verify');
 require('./firings');
 require('./firing');
 require('./ingest');
+require('./tc-log');
