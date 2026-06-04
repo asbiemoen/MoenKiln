@@ -46,6 +46,11 @@ td{padding:5px 6px;border-bottom:1px solid #1e1e1e}
 .state-HOLD{background:#1e1e2a;color:#6688ff}
 .state-COOL{background:#102028;color:#44aacc}
 .state-ERROR{background:#2a1010;color:#ff5555}
+.batch-row{cursor:pointer}
+.batch-row:hover td{background:#2a2a2a}
+.batch-row.open td{background:#1e1e1e}
+.batch-detail td{padding:0;background:#1a1a1a}
+.batch-detail-inner{padding:10px 8px 12px}
 </style>
 </head>
 <body>
@@ -100,10 +105,12 @@ td{padding:5px 6px;border-bottom:1px solid #1e1e1e}
 <script>
 const API = 'https://miln-api.azurewebsites.net';
 
-let token     = null;
-let liveTimer = null;
-let chart     = null;
-let tcChart   = null;
+let token        = null;
+let liveTimer    = null;
+let chart        = null;
+let tcChart      = null;
+let tcBatches    = [];
+let detailCharts = new Map();
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 async function init() {
@@ -322,6 +329,9 @@ async function loadTcLog(hours, btn) {
   if (!data) return;
 
   const { batches } = data;
+  tcBatches = [...batches].reverse();
+  detailCharts.forEach(c => c.destroy());
+  detailCharts.clear();
 
   if (!batches.length) {
     document.getElementById('tc-stats').textContent = 'Ingen data i valgt tidsrom.';
@@ -366,17 +376,74 @@ async function loadTcLog(hours, btn) {
     },
   });
 
-  document.getElementById('tc-tbody').innerHTML = [...batches].reverse().map(b => {
+  document.getElementById('tc-tbody').innerHTML = tcBatches.map((b, i) => {
     const ts      = new Date(b.received_at).toLocaleTimeString('no-NO', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
     const lastT   = b.readings.at(-1);
     const stClass = `state-${(b.state || 'IDLE').toUpperCase()}`;
-    return `<tr>
+    return `<tr class="batch-row" onclick="toggleBatchDetail(${i})">
       <td style="color:#555">${ts}</td>
       <td><span class="state-badge ${stClass}">${b.state || '—'}</span></td>
       <td>${b.readings.length}</td>
       <td><b>${lastT}°C</b></td>
+    </tr>
+    <tr class="batch-detail" id="bd-${i}" style="display:none">
+      <td colspan="4"><div class="batch-detail-inner"><canvas id="bdc-${i}" height="140"></canvas></div></td>
     </tr>`;
   }).join('');
+}
+
+// ── TC batch drill-down ───────────────────────────────────────────────────────
+function toggleBatchDetail(idx) {
+  const detailRow = document.getElementById(`bd-${idx}`);
+  const batchRow  = detailRow.previousElementSibling;
+  const isOpen    = detailRow.style.display !== 'none';
+
+  if (isOpen) {
+    detailRow.style.display = 'none';
+    batchRow.classList.remove('open');
+    if (detailCharts.has(idx)) { detailCharts.get(idx).destroy(); detailCharts.delete(idx); }
+    return;
+  }
+
+  detailRow.style.display = '';
+  batchRow.classList.add('open');
+
+  const b          = tcBatches[idx];
+  const n          = b.readings.length;
+  const intervalMs = b.sample_interval_ms || 1000;
+  const endMs      = new Date(b.received_at).getTime();
+  const labels     = b.readings.map((_, i) => {
+    const ts = new Date(endMs - (n - 1 - i) * intervalMs);
+    return ts.toLocaleTimeString('no-NO', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  });
+
+  const c = new Chart(document.getElementById(`bdc-${idx}`), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Temp °C',
+        data: b.readings,
+        borderColor: '#ff9933',
+        backgroundColor: 'rgba(255,153,51,.08)',
+        borderWidth: 1.5,
+        pointRadius: 0,
+        tension: 0.2,
+        fill: true,
+      }],
+    },
+    options: {
+      responsive: true,
+      animation: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: { ticks: { color: '#555', maxTicksLimit: 6 }, grid: { color: '#2a2a2a' } },
+        y: { ticks: { color: '#555' }, grid: { color: '#2a2a2a' } },
+      },
+      plugins: { legend: { display: false } },
+    },
+  });
+  detailCharts.set(idx, c);
 }
 
 init();
