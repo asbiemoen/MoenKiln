@@ -83,6 +83,7 @@ static void _clPost(uint16_t firingId, uint32_t sec, float temp, float sp,
 
 void maybeSendCloudPoint(unsigned long now) {
   if (!_clEnabled) return;
+  if (!firingStartMs) return;
   if (WiFi.status() != WL_CONNECTED) return;
   if (_clLastMs != 0 && now - _clLastMs < CLOUD_LOG_INTERVAL_MS) return;
   _clLastMs = now;
