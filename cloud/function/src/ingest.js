@@ -32,7 +32,7 @@ app.http('ingest', {
 
     try {
       await getPool().query(
-        `INSERT INTO kiln_batches
+        `INSERT INTO tc_log
            (received_at, device_id, state, sample_interval_ms, batch_start, readings)
          VALUES
            (NOW(), $1, $2, $3, NULL, $4::smallint[])`,
