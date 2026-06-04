@@ -18,7 +18,7 @@ app.http('auth-verify', {
         ? { status: 200, jsonBody: { valid: true } }
         : { status: 401, body: 'Invalid or expired token' };
     } catch (err) {
-      ctx.log.error('Auth verify:', err.message);
+      ctx.error('Auth verify:', err.message);
       return { status: 500, body: 'Server error' };
     }
   },
