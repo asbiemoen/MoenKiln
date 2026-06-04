@@ -3,12 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Moen Kiln – Cloud Log</title>
+<title>MilnCloudLog</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:#111;color:#eee;font-family:system-ui,sans-serif;padding:12px;max-width:720px;margin:0 auto}
-h1{color:#ff7700;font-size:1.2em;margin-bottom:12px}
+body{background:#111;color:#eee;font-family:system-ui,sans-serif;padding:0;max-width:720px;margin:0 auto}
+nav{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid #222;margin-bottom:12px}
+.nav-brand{color:#ff7700;font-weight:700;font-size:1.1em;flex:1}
+.nav-tabs{display:flex;gap:4px}
+.nav-tab{background:none;border:1px solid #333;color:#888;border-radius:6px;padding:5px 14px;cursor:pointer;font-size:.85em;transition:all .15s}
+.nav-tab:hover{border-color:#555;color:#ccc}
+.nav-tab.active{background:#ff7700;border-color:#ff7700;color:#fff;font-weight:600}
+.main{padding:0 12px 16px}
 .card{background:#222;border-radius:10px;padding:14px;margin-bottom:10px}
 .firing-row{display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid #2a2a2a;cursor:pointer;border-radius:6px;transition:background .1s}
 .firing-row:last-child{border-bottom:none}
@@ -28,47 +34,91 @@ td{padding:5px 6px;border-bottom:1px solid #1e1e1e}
 .pill{display:inline-block;background:#2a2a2a;border-radius:5px;padding:3px 10px;font-size:.82em;margin:2px}
 .pill b{color:#ff9933}
 #msg{text-align:center;color:#555;padding:24px}
-.logout{float:right;font-size:.78em;color:#555;cursor:pointer;padding:2px 0}
+.logout{font-size:.78em;color:#555;cursor:pointer;padding:2px 0}
 .logout:hover{color:#ff7700}
+.time-sel{display:flex;gap:6px;margin-bottom:12px}
+.tsel{background:#2a2a2a;border:1px solid #333;color:#888;border-radius:6px;padding:4px 14px;cursor:pointer;font-size:.84em;transition:all .15s}
+.tsel:hover{border-color:#555;color:#ccc}
+.tsel.active{background:#ff7700;border-color:#ff7700;color:#fff;font-weight:600}
+.state-badge{display:inline-block;border-radius:4px;padding:1px 7px;font-size:.75em;font-weight:600;margin-left:4px}
+.state-IDLE{background:#1e2a1e;color:#66aa66}
+.state-RAMP{background:#2a1e10;color:#ff9933}
+.state-HOLD{background:#1e1e2a;color:#6688ff}
+.state-COOL{background:#102028;color:#44aacc}
+.state-ERROR{background:#2a1010;color:#ff5555}
 </style>
 </head>
 <body>
-<h1>🔥 Moen Kiln – Cloud Log <span class="logout" onclick="logout()">Logg ut</span></h1>
-<div id="view-list">
-  <div class="card">
-    <div id="msg">Laster brenninger…</div>
-    <div id="list"></div>
+
+<nav>
+  <span class="nav-brand">🔥 MilnCloudLog</span>
+  <div class="nav-tabs">
+    <button class="nav-tab active" id="tab-firings" onclick="showTab('firings')">Brenninger</button>
+    <button class="nav-tab" id="tab-tc" onclick="showTab('tc')">TC-logg</button>
   </div>
-</div>
-<div id="view-detail" style="display:none"></div>
+  <span class="logout" onclick="logout()">Logg ut</span>
+</nav>
+
+<div class="main">
+
+  <!-- ── Firings list ── -->
+  <div id="view-list">
+    <div class="card">
+      <div id="msg">Laster brenninger…</div>
+      <div id="list"></div>
+    </div>
+  </div>
+
+  <!-- ── Firing detail ── -->
+  <div id="view-detail" style="display:none"></div>
+
+  <!-- ── TC log ── -->
+  <div id="view-tc" style="display:none">
+    <div class="card">
+      <div class="time-sel">
+        <button class="tsel active" onclick="loadTcLog(1,this)">1t</button>
+        <button class="tsel" onclick="loadTcLog(6,this)">6t</button>
+        <button class="tsel" onclick="loadTcLog(24,this)">24t</button>
+      </div>
+      <div id="tc-stats" style="color:#555;font-size:.84em">Laster…</div>
+    </div>
+    <div class="card" style="padding:8px"><canvas id="tc-cv" height="200"></canvas></div>
+    <div class="card" style="padding:10px 8px">
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>Mottatt</th><th>Tilstand</th><th>Samples</th><th>Siste temp</th>
+          </tr></thead>
+          <tbody id="tc-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
 
 <script>
-// Replace with your Azure Function App URL
 const API = 'https://miln-api.azurewebsites.net';
 
 let token     = null;
 let liveTimer = null;
 let chart     = null;
+let tcChart   = null;
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 async function init() {
   const params   = new URLSearchParams(location.search);
   const urlToken = params.get('token');
-
   if (urlToken) {
     if (await verifyToken(urlToken)) {
       token = urlToken;
       localStorage.setItem('miln_token', token);
       history.replaceState({}, '', location.pathname);
-    } else {
-      redirect();
-      return;
-    }
+    } else { redirect(); return; }
   } else {
     token = localStorage.getItem('miln_token');
     if (!token || !(await verifyToken(token))) { redirect(); return; }
   }
-
   loadFirings();
 }
 
@@ -80,10 +130,20 @@ async function verifyToken(t) {
 }
 
 function redirect() { location.href = 'login.html'; }
+function logout() { localStorage.removeItem('miln_token'); redirect(); }
 
-function logout() {
-  localStorage.removeItem('miln_token');
-  redirect();
+// ── Navigation ────────────────────────────────────────────────────────────────
+function showTab(tab) {
+  document.getElementById('tab-firings').classList.toggle('active', tab === 'firings');
+  document.getElementById('tab-tc').classList.toggle('active', tab === 'tc');
+
+  const showFirings = tab === 'firings';
+  document.getElementById('view-list').style.display    = showFirings ? '' : 'none';
+  document.getElementById('view-detail').style.display  = 'none';
+  document.getElementById('view-tc').style.display      = showFirings ? 'none' : '';
+
+  if (tab === 'tc') loadTcLog(1, document.querySelector('.tsel'));
+  if (tab === 'firings') loadFirings();
 }
 
 // ── API helper ────────────────────────────────────────────────────────────────
@@ -104,19 +164,12 @@ async function loadFirings() {
   const msg  = document.getElementById('msg');
   const list = document.getElementById('list');
 
-  if (!data.length) {
-    msg.textContent = 'Ingen brenninger registrert ennå.';
-    return;
-  }
+  if (!data.length) { msg.textContent = 'Ingen brenninger registrert ennå.'; return; }
   msg.style.display = 'none';
 
   list.innerHTML = data.map(f => {
-    const date = new Date(f.started_at).toLocaleDateString('no-NO', {
-      day: '2-digit', month: '2-digit', year: 'numeric',
-    });
-    const time = new Date(f.started_at).toLocaleTimeString('no-NO', {
-      hour: '2-digit', minute: '2-digit',
-    });
+    const date = new Date(f.started_at).toLocaleDateString('no-NO', { day:'2-digit', month:'2-digit', year:'numeric' });
+    const time = new Date(f.started_at).toLocaleTimeString('no-NO', { hour:'2-digit', minute:'2-digit' });
     const live = Date.now() - new Date(f.last_seen_at) < 3 * 60 * 1000;
     return `<div class="firing-row" onclick="loadFiring(${f.firing_id})">
       <span class="fid">#${f.firing_id}</span>
@@ -138,7 +191,6 @@ async function loadFiring(id) {
 
   const data = await apiFetch(`firing/${id}`);
   if (!data) return;
-
   renderFiring(id, data);
 
   if (data.length) {
@@ -154,11 +206,10 @@ async function loadFiring(id) {
 
 function renderFiring(id, data) {
   if (chart) { chart.destroy(); chart = null; }
-
-  const view    = document.getElementById('view-detail');
-  const isLive  = data.length && (Date.now() - new Date(data[data.length - 1].ts) < 3 * 60 * 1000);
-  const maxTemp = data.reduce((m, p) => Math.max(m, p.temp_c || 0), 0);
-  const lastSec = data.length ? (data[data.length - 1].sec_elapsed || 0) : 0;
+  const view   = document.getElementById('view-detail');
+  const isLive = data.length && (Date.now() - new Date(data[data.length - 1].ts) < 3 * 60 * 1000);
+  const maxTemp  = data.reduce((m, p) => Math.max(m, p.temp_c || 0), 0);
+  const lastSec  = data.length ? (data[data.length - 1].sec_elapsed || 0) : 0;
   const h = Math.floor(lastSec / 3600), m = Math.floor((lastSec % 3600) / 60);
 
   view.innerHTML = `
@@ -176,9 +227,7 @@ function renderFiring(id, data) {
     <div class="card" style="padding:10px 8px">
       <div class="tbl-wrap">
         <table>
-          <thead><tr>
-            <th>Klokke</th><th>Tid</th><th>Temp</th><th>SP</th><th>Duty%</th><th>Relé</th><th>Segment</th>
-          </tr></thead>
+          <thead><tr><th>Klokke</th><th>Tid</th><th>Temp</th><th>SP</th><th>Duty%</th><th>Relé</th><th>Segment</th></tr></thead>
           <tbody id="dtbody"></tbody>
         </table>
       </div>
@@ -186,14 +235,10 @@ function renderFiring(id, data) {
 
   const labels = data.map(p => {
     if (p.sec_elapsed != null) {
-      const h = Math.floor(p.sec_elapsed / 3600);
-      const m = Math.floor((p.sec_elapsed % 3600) / 60);
-      const s = p.sec_elapsed % 60;
-      return h
-        ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
-        : `${m}:${String(s).padStart(2,'0')}`;
+      const h = Math.floor(p.sec_elapsed/3600), m = Math.floor((p.sec_elapsed%3600)/60), s = p.sec_elapsed%60;
+      return h ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${m}:${String(s).padStart(2,'0')}`;
     }
-    return new Date(p.ts).toLocaleTimeString('no-NO', { hour: '2-digit', minute: '2-digit' });
+    return new Date(p.ts).toLocaleTimeString('no-NO', { hour:'2-digit', minute:'2-digit' });
   });
 
   chart = new Chart(document.getElementById('cv'), {
@@ -201,25 +246,8 @@ function renderFiring(id, data) {
     data: {
       labels,
       datasets: [
-        {
-          label: 'Temp °C',
-          data: data.map(p => p.temp_c),
-          borderColor: '#ff7700',
-          backgroundColor: 'rgba(255,119,0,.07)',
-          borderWidth: 2,
-          pointRadius: data.length > 80 ? 0 : 2,
-          tension: 0.25,
-          fill: true,
-        },
-        {
-          label: 'Settpunkt °C',
-          data: data.map(p => p.setpoint_c),
-          borderColor: '#4488ff',
-          borderWidth: 1.5,
-          borderDash: [5, 3],
-          pointRadius: 0,
-          tension: 0.25,
-        },
+        { label: 'Temp °C', data: data.map(p => p.temp_c), borderColor: '#ff7700', backgroundColor: 'rgba(255,119,0,.07)', borderWidth: 2, pointRadius: data.length > 80 ? 0 : 2, tension: 0.25, fill: true },
+        { label: 'Settpunkt °C', data: data.map(p => p.setpoint_c), borderColor: '#4488ff', borderWidth: 1.5, borderDash: [5,3], pointRadius: 0, tension: 0.25 },
       ],
     },
     options: {
@@ -233,24 +261,14 @@ function renderFiring(id, data) {
     },
   });
 
-  const tbody    = document.getElementById('dtbody');
-  const reversed = [...data].reverse();
-
-  tbody.innerHTML = reversed.map(p => {
-    const clock = new Date(p.ts).toLocaleTimeString('no-NO', {
-      hour: '2-digit', minute: '2-digit', second: '2-digit',
-    });
+  document.getElementById('dtbody').innerHTML = [...data].reverse().map(p => {
+    const clock   = new Date(p.ts).toLocaleTimeString('no-NO', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
     const elapsed = p.sec_elapsed != null ? (() => {
-      const h = Math.floor(p.sec_elapsed / 3600);
-      const m = Math.floor((p.sec_elapsed % 3600) / 60);
-      const s = p.sec_elapsed % 60;
-      return h
-        ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
-        : `${m}:${String(s).padStart(2,'0')}`;
+      const h=Math.floor(p.sec_elapsed/3600), m=Math.floor((p.sec_elapsed%3600)/60), s=p.sec_elapsed%60;
+      return h ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${m}:${String(s).padStart(2,'0')}`;
     })() : '--';
     return `<tr${p.is_err ? ' style="color:#ff5555"' : ''}>
-      <td style="color:#555">${clock}</td>
-      <td>${elapsed}</td>
+      <td style="color:#555">${clock}</td><td>${elapsed}</td>
       <td><b>${p.temp_c != null ? Number(p.temp_c).toFixed(1) : '--'}°C</b></td>
       <td style="color:#888">${p.setpoint_c != null ? Number(p.setpoint_c).toFixed(1) : '--'}°C</td>
       <td>${p.duty_pct ?? '--'}%</td>
@@ -264,7 +282,101 @@ function backToList() {
   if (liveTimer) { clearInterval(liveTimer); liveTimer = null; }
   if (chart)     { chart.destroy(); chart = null; }
   document.getElementById('view-detail').style.display = 'none';
-  document.getElementById('view-list').style.display   = 'block';
+  document.getElementById('view-list').style.display   = '';
+}
+
+// ── TC log ────────────────────────────────────────────────────────────────────
+function expandBatches(batches) {
+  const points = [];
+  for (const b of batches) {
+    const n          = b.readings.length;
+    const intervalMs = b.sample_interval_ms || 1000;
+    const endMs      = new Date(b.received_at).getTime();
+    for (let i = 0; i < n; i++) {
+      points.push({
+        ts:     new Date(endMs - (n - 1 - i) * intervalMs),
+        temp_c: b.readings[i],
+        state:  b.state,
+      });
+    }
+  }
+  return points;
+}
+
+function downsample(points, maxPts) {
+  if (points.length <= maxPts) return points;
+  const step = Math.ceil(points.length / maxPts);
+  return points.filter((_, i) => i % step === 0);
+}
+
+async function loadTcLog(hours, btn) {
+  if (btn) {
+    document.querySelectorAll('.tsel').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+
+  document.getElementById('tc-stats').textContent = 'Laster…';
+  if (tcChart) { tcChart.destroy(); tcChart = null; }
+
+  const data = await apiFetch(`tc-log?hours=${hours}`);
+  if (!data) return;
+
+  const { batches } = data;
+
+  if (!batches.length) {
+    document.getElementById('tc-stats').textContent = 'Ingen data i valgt tidsrom.';
+    document.getElementById('tc-tbody').innerHTML = '';
+    return;
+  }
+
+  const points = downsample(expandBatches(batches), 2000);
+  const lastTemp = batches[batches.length - 1].readings.at(-1);
+  const firstTs  = points[0].ts;
+  const lastTs   = points[points.length - 1].ts;
+
+  document.getElementById('tc-stats').innerHTML =
+    `<span class="pill">Siste: <b>${lastTemp}°C</b></span>` +
+    `<span class="pill">Batches: <b>${batches.length}</b></span>` +
+    `<span class="pill">Fra: <b>${firstTs.toLocaleTimeString('no-NO', {hour:'2-digit',minute:'2-digit'})}</b></span>` +
+    `<span class="pill">Til: <b>${lastTs.toLocaleTimeString('no-NO', {hour:'2-digit',minute:'2-digit'})}</b></span>`;
+
+  tcChart = new Chart(document.getElementById('tc-cv'), {
+    type: 'line',
+    data: {
+      labels: points.map(p => p.ts.toLocaleTimeString('no-NO', { hour:'2-digit', minute:'2-digit' })),
+      datasets: [{
+        label: 'Temp °C',
+        data: points.map(p => p.temp_c),
+        borderColor: '#ff7700',
+        backgroundColor: 'rgba(255,119,0,.07)',
+        borderWidth: 1.5,
+        pointRadius: 0,
+        tension: 0.2,
+        fill: true,
+      }],
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: { ticks: { color: '#555', maxTicksLimit: 8 }, grid: { color: '#2a2a2a' } },
+        y: { ticks: { color: '#555' }, grid: { color: '#2a2a2a' } },
+      },
+      plugins: { legend: { display: false } },
+    },
+  });
+
+  document.getElementById('tc-tbody').innerHTML = [...batches].reverse().map(b => {
+    const ts      = new Date(b.received_at).toLocaleTimeString('no-NO', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+    const lastT   = b.readings.at(-1);
+    const stClass = `state-${(b.state || 'IDLE').toUpperCase()}`;
+    return `<tr>
+      <td style="color:#555">${ts}</td>
+      <td><span class="state-badge ${stClass}">${b.state || '—'}</span></td>
+      <td>${b.readings.length}</td>
+      <td><b>${lastT}°C</b></td>
+    </tr>`;
+  }).join('');
 }
 
 init();
