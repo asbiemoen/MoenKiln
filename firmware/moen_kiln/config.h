@@ -82,6 +82,11 @@ struct Event { uint16_t sec; uint8_t type; uint16_t temp; };
 #define EEPROM_ELOG_CNT   5302  // 1 byte
 #define EEPROM_ELOG_LOG   5303  // 32 * 5 bytes = 160 → slutter på 5463
 
+// Cloud logging
+#define EEPROM_CLOUD_ENABLED    6351    // 1 byte : 0x01 = cloud logging on
+#define EEPROM_CLOUD_FIRING_ID  6352    // 2 bytes: uint16_t persistent firing counter
+// 6354 onwards: free  (8192 bytes total EEPROM)
+
 // Custom firing profiles (user-editable; default profiles are compile-time constants)  0x46 = valid
 #define MAX_CUSTOM_PROFILES    5
 #define MAX_SEGS_PER_PROFILE   8

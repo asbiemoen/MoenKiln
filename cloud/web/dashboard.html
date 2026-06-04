@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Moen Kiln – Cloud Log</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#111;color:#eee;font-family:system-ui,sans-serif;padding:12px;max-width:720px;margin:0 auto}
+h1{color:#ff7700;font-size:1.2em;margin-bottom:12px}
+.card{background:#222;border-radius:10px;padding:14px;margin-bottom:10px}
+.firing-row{display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid #2a2a2a;cursor:pointer;border-radius:6px;transition:background .1s}
+.firing-row:last-child{border-bottom:none}
+.firing-row:hover{background:#2a2a2a}
+.fid{background:#2a2a2a;border-radius:5px;padding:3px 9px;font-size:.8em;font-family:monospace;color:#ff9933;white-space:nowrap}
+.fmeta{flex:1;font-size:.84em;color:#888}
+.fmax{font-size:1em;font-weight:700;color:#ff7700;white-space:nowrap}
+.ferr{font-size:.75em;color:#ff5555;margin-left:4px}
+.back{color:#ff7700;cursor:pointer;font-size:.9em;margin-bottom:10px;display:inline-block}
+.back:hover{text-decoration:underline}
+canvas{display:block;width:100%}
+.tbl-wrap{overflow-x:auto;max-height:320px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse;font-size:.78em;min-width:340px}
+th{text-align:left;padding:5px 6px;color:#666;font-weight:normal;border-bottom:1px solid #333;position:sticky;top:0;background:#222}
+td{padding:5px 6px;border-bottom:1px solid #1e1e1e}
+.live-badge{background:#1a3010;color:#88cc44;border-radius:5px;padding:2px 9px;font-size:.78em;margin-left:8px}
+.pill{display:inline-block;background:#2a2a2a;border-radius:5px;padding:3px 10px;font-size:.82em;margin:2px}
+.pill b{color:#ff9933}
+#msg{text-align:center;color:#555;padding:24px}
+.logout{float:right;font-size:.78em;color:#555;cursor:pointer;padding:2px 0}
+.logout:hover{color:#ff7700}
+</style>
+</head>
+<body>
+<h1>🔥 Moen Kiln – Cloud Log <span class="logout" onclick="logout()">Logg ut</span></h1>
+<div id="view-list">
+  <div class="card">
+    <div id="msg">Laster brenninger…</div>
+    <div id="list"></div>
+  </div>
+</div>
+<div id="view-detail" style="display:none"></div>
+
+<script>
+// Replace with your Azure Function App URL
+const API = 'https://miln-api.azurewebsites.net';
+
+let token     = null;
+let liveTimer = null;
+let chart     = null;
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+async function init() {
+  const params   = new URLSearchParams(location.search);
+  const urlToken = params.get('token');
+
+  if (urlToken) {
+    if (await verifyToken(urlToken)) {
+      token = urlToken;
+      localStorage.setItem('miln_token', token);
+      history.replaceState({}, '', location.pathname);
+    } else {
+      redirect();
+      return;
+    }
+  } else {
+    token = localStorage.getItem('miln_token');
+    if (!token || !(await verifyToken(token))) { redirect(); return; }
+  }
+
+  loadFirings();
+}
+
+async function verifyToken(t) {
+  try {
+    const r = await fetch(`${API}/api/auth/verify?token=${encodeURIComponent(t)}`);
+    return r.ok;
+  } catch { return false; }
+}
+
+function redirect() { location.href = 'login.html'; }
+
+function logout() {
+  localStorage.removeItem('miln_token');
+  redirect();
+}
+
+// ── API helper ────────────────────────────────────────────────────────────────
+async function apiFetch(path) {
+  const r = await fetch(`${API}/api/${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (r.status === 401) { redirect(); return null; }
+  if (!r.ok) throw new Error(r.statusText);
+  return r.json();
+}
+
+// ── Firings list ──────────────────────────────────────────────────────────────
+async function loadFirings() {
+  const data = await apiFetch('firings');
+  if (!data) return;
+
+  const msg  = document.getElementById('msg');
+  const list = document.getElementById('list');
+
+  if (!data.length) {
+    msg.textContent = 'Ingen brenninger registrert ennå.';
+    return;
+  }
+  msg.style.display = 'none';
+
+  list.innerHTML = data.map(f => {
+    const date = new Date(f.started_at).toLocaleDateString('no-NO', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+    });
+    const time = new Date(f.started_at).toLocaleTimeString('no-NO', {
+      hour: '2-digit', minute: '2-digit',
+    });
+    const live = Date.now() - new Date(f.last_seen_at) < 3 * 60 * 1000;
+    return `<div class="firing-row" onclick="loadFiring(${f.firing_id})">
+      <span class="fid">#${f.firing_id}</span>
+      <span class="fmeta">${date} ${time}&ensp;·&ensp;${f.point_count} pt${live ? '<span class="live-badge">● LIVE</span>' : ''}</span>
+      <span class="fmax">${f.max_temp_c ? Math.round(f.max_temp_c) + '°C' : '--'}${f.had_error ? '<span class="ferr">⚠</span>' : ''}</span>
+    </div>`;
+  }).join('');
+}
+
+// ── Firing detail ─────────────────────────────────────────────────────────────
+async function loadFiring(id) {
+  if (liveTimer) { clearInterval(liveTimer); liveTimer = null; }
+  if (chart)     { chart.destroy(); chart = null; }
+
+  document.getElementById('view-list').style.display = 'none';
+  const view = document.getElementById('view-detail');
+  view.style.display = 'block';
+  view.innerHTML = '<div class="card"><div style="color:#555;text-align:center;padding:24px">Laster…</div></div>';
+
+  const data = await apiFetch(`firing/${id}`);
+  if (!data) return;
+
+  renderFiring(id, data);
+
+  if (data.length) {
+    const last = new Date(data[data.length - 1].ts);
+    if (Date.now() - last < 3 * 60 * 1000) {
+      liveTimer = setInterval(async () => {
+        const fresh = await apiFetch(`firing/${id}`);
+        if (fresh) renderFiring(id, fresh);
+      }, 60_000);
+    }
+  }
+}
+
+function renderFiring(id, data) {
+  if (chart) { chart.destroy(); chart = null; }
+
+  const view    = document.getElementById('view-detail');
+  const isLive  = data.length && (Date.now() - new Date(data[data.length - 1].ts) < 3 * 60 * 1000);
+  const maxTemp = data.reduce((m, p) => Math.max(m, p.temp_c || 0), 0);
+  const lastSec = data.length ? (data[data.length - 1].sec_elapsed || 0) : 0;
+  const h = Math.floor(lastSec / 3600), m = Math.floor((lastSec % 3600) / 60);
+
+  view.innerHTML = `
+    <span class="back" onclick="backToList()">← Alle brenninger</span>
+    <div class="card">
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:10px">
+        <span style="color:#ff7700;font-weight:700;font-size:1.1em">Brenning #${id}</span>
+        ${isLive ? '<span class="live-badge">● LIVE</span>' : ''}
+      </div>
+      <span class="pill">Maks: <b>${Math.round(maxTemp)}°C</b></span>
+      <span class="pill">Varighet: <b>${h}t ${m}m</b></span>
+      <span class="pill">Datapunkter: <b>${data.length}</b></span>
+    </div>
+    <div class="card" style="padding:8px"><canvas id="cv" height="200"></canvas></div>
+    <div class="card" style="padding:10px 8px">
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>Klokke</th><th>Tid</th><th>Temp</th><th>SP</th><th>Duty%</th><th>Relé</th><th>Segment</th>
+          </tr></thead>
+          <tbody id="dtbody"></tbody>
+        </table>
+      </div>
+    </div>`;
+
+  const labels = data.map(p => {
+    if (p.sec_elapsed != null) {
+      const h = Math.floor(p.sec_elapsed / 3600);
+      const m = Math.floor((p.sec_elapsed % 3600) / 60);
+      const s = p.sec_elapsed % 60;
+      return h
+        ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+        : `${m}:${String(s).padStart(2,'0')}`;
+    }
+    return new Date(p.ts).toLocaleTimeString('no-NO', { hour: '2-digit', minute: '2-digit' });
+  });
+
+  chart = new Chart(document.getElementById('cv'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Temp °C',
+          data: data.map(p => p.temp_c),
+          borderColor: '#ff7700',
+          backgroundColor: 'rgba(255,119,0,.07)',
+          borderWidth: 2,
+          pointRadius: data.length > 80 ? 0 : 2,
+          tension: 0.25,
+          fill: true,
+        },
+        {
+          label: 'Settpunkt °C',
+          data: data.map(p => p.setpoint_c),
+          borderColor: '#4488ff',
+          borderWidth: 1.5,
+          borderDash: [5, 3],
+          pointRadius: 0,
+          tension: 0.25,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: { ticks: { color: '#555', maxTicksLimit: 10 }, grid: { color: '#2a2a2a' } },
+        y: { ticks: { color: '#555' }, grid: { color: '#2a2a2a' } },
+      },
+      plugins: { legend: { labels: { color: '#aaa', boxWidth: 14 } } },
+    },
+  });
+
+  const tbody    = document.getElementById('dtbody');
+  const reversed = [...data].reverse();
+
+  tbody.innerHTML = reversed.map(p => {
+    const clock = new Date(p.ts).toLocaleTimeString('no-NO', {
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+    });
+    const elapsed = p.sec_elapsed != null ? (() => {
+      const h = Math.floor(p.sec_elapsed / 3600);
+      const m = Math.floor((p.sec_elapsed % 3600) / 60);
+      const s = p.sec_elapsed % 60;
+      return h
+        ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+        : `${m}:${String(s).padStart(2,'0')}`;
+    })() : '--';
+    return `<tr${p.is_err ? ' style="color:#ff5555"' : ''}>
+      <td style="color:#555">${clock}</td>
+      <td>${elapsed}</td>
+      <td><b>${p.temp_c != null ? Number(p.temp_c).toFixed(1) : '--'}°C</b></td>
+      <td style="color:#888">${p.setpoint_c != null ? Number(p.setpoint_c).toFixed(1) : '--'}°C</td>
+      <td>${p.duty_pct ?? '--'}%</td>
+      <td>${p.relay ? '🔴' : '⚪'}</td>
+      <td style="color:#777;font-size:.9em">${p.segment || ''}</td>
+    </tr>`;
+  }).join('');
+}
+
+function backToList() {
+  if (liveTimer) { clearInterval(liveTimer); liveTimer = null; }
+  if (chart)     { chart.destroy(); chart = null; }
+  document.getElementById('view-detail').style.display = 'none';
+  document.getElementById('view-list').style.display   = 'block';
+}
+
+init();
+</script>
+</body>
+</html>

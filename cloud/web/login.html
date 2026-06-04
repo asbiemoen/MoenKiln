@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Moen Kiln – Logg inn</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#111;color:#eee;font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:16px}
+.card{background:#222;border-radius:12px;padding:32px 24px;max-width:360px;width:100%;text-align:center}
+h1{color:#ff7700;font-size:1.4em;margin-bottom:8px}
+p{color:#888;font-size:.9em;margin-bottom:24px}
+input{width:100%;padding:12px;border-radius:8px;border:none;background:#333;color:#eee;font-size:1em;margin-bottom:12px;text-align:center;outline:none}
+input:focus{box-shadow:0 0 0 2px #ff7700}
+button{width:100%;padding:13px;border:none;border-radius:8px;background:#ff7700;color:#fff;font-size:1em;font-weight:600;cursor:pointer;transition:filter .1s}
+button:active{filter:brightness(.8)}
+button:disabled{opacity:.4;cursor:not-allowed}
+.msg{margin-top:16px;font-size:.88em;min-height:1.4em}
+.ok{color:#55bb55}.err{color:#ff5555}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>🔥 Moen Kiln</h1>
+  <p>Cloud Log – skriv inn e-postadressen din for å motta innloggingslenke</p>
+  <input id="email" type="email" placeholder="e-postadresse" autocomplete="email">
+  <button id="btn" onclick="send()">Send innloggingslenke</button>
+  <div class="msg" id="msg"></div>
+</div>
+<script>
+// Replace with your Azure Function App URL
+const API = 'https://miln-api.azurewebsites.net';
+
+async function send() {
+  const email = document.getElementById('email').value.trim();
+  const btn   = document.getElementById('btn');
+  const msg   = document.getElementById('msg');
+  if (!email) return;
+
+  btn.disabled = true;
+  msg.textContent = 'Sender…';
+  msg.className = 'msg';
+
+  try {
+    await fetch(`${API}/api/auth/request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    msg.className = 'msg ok';
+    msg.textContent = 'Sjekk e-posten din – lenken er gyldig i 24 timer.';
+  } catch {
+    msg.className = 'msg err';
+    msg.textContent = 'Nettverksfeil – prøv igjen.';
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('email').addEventListener('keydown', e => {
+  if (e.key === 'Enter') send();
+});
+</script>
+</body>
+</html>
