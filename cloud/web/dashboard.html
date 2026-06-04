@@ -51,6 +51,10 @@ td{padding:5px 6px;border-bottom:1px solid #1e1e1e}
 .batch-row.open td{background:#1e1e1e}
 .batch-detail td{padding:0;background:#1a1a1a}
 .batch-detail-inner{padding:10px 8px 12px}
+.raw-tbl-wrap{overflow-y:auto;max-height:220px;margin-top:10px}
+.raw-tbl-wrap table{min-width:unset;width:100%}
+.raw-tbl-wrap td{font-family:monospace;font-size:.8em;padding:3px 8px;border-bottom:1px solid #1e1e1e}
+.raw-tbl-wrap td:last-child{color:#ff9933;text-align:right}
 </style>
 </head>
 <body>
@@ -387,7 +391,10 @@ async function loadTcLog(hours, btn) {
       <td><b>${lastT}°C</b></td>
     </tr>
     <tr class="batch-detail" id="bd-${i}" style="display:none">
-      <td colspan="4"><div class="batch-detail-inner"><canvas id="bdc-${i}" height="140"></canvas></div></td>
+      <td colspan="4"><div class="batch-detail-inner">
+        <canvas id="bdc-${i}" height="140"></canvas>
+        <div class="raw-tbl-wrap" id="bdt-${i}"></div>
+      </div></td>
     </tr>`;
   }).join('');
 }
@@ -444,6 +451,15 @@ function toggleBatchDetail(idx) {
     },
   });
   detailCharts.set(idx, c);
+
+  document.getElementById(`bdt-${idx}`).innerHTML =
+    `<table><thead><tr><th>Tid</th><th style="text-align:right">Temp</th></tr></thead><tbody>` +
+    b.readings.map((temp, i) => {
+      const ts = new Date(endMs - (n - 1 - i) * intervalMs)
+        .toLocaleTimeString('no-NO', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      return `<tr><td>${ts}</td><td>${temp}°C</td></tr>`;
+    }).join('') +
+    `</tbody></table>`;
 }
 
 init();
