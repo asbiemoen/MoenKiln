@@ -45,7 +45,7 @@ app.http('log', {
       );
       return { status: 200, body: 'ok' };
     } catch (err) {
-      ctx.log.error('DB insert error:', err.message);
+      ctx.error('DB insert error:', err.message);
       return { status: 500, body: 'Database error' };
     }
   },
