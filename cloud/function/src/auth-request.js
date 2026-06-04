@@ -13,7 +13,8 @@ app.http('auth-request', {
     const email = (body.email || '').toLowerCase().trim();
     const ok = { status: 200, body: 'If that address is registered, a login link has been sent.' };
 
-    if (email !== (process.env.ALLOWED_EMAIL || '').toLowerCase()) return ok;
+    const allowed = (process.env.ALLOWED_EMAIL || '').split(',').map(e => e.trim().toLowerCase());
+    if (!allowed.includes(email)) return ok;
 
     const token   = crypto.randomBytes(32).toString('hex');
     const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
