@@ -125,6 +125,23 @@ textarea.invalid{border:1.5px solid #b71c1c}
   </div>
 </div>
 <div class="card">
+<details id="clouddetails">
+<summary>☁️ Cloud Logging</summary>
+<div style="margin-top:10px">
+  <div id="cloud-status" class="shead" style="min-height:1.2em">Laster status…</div>
+  <div class="btns" style="margin-top:8px">
+    <button class="go" onclick="setCloud(1)">Enable</button>
+    <button class="stop" onclick="setCloud(0)">Disable</button>
+  </div>
+  <div style="margin-top:10px">
+    <a id="cloud-link" href="#" target="_blank" style="color:#ff7700;font-size:.9em">
+      ☁️ Open Cloud Dashboard →
+    </a>
+  </div>
+</div>
+</details>
+</div>
+<div class="card">
 <details id="profdetails">
 <summary>🎨 Firing Profiles</summary>
 <div style="margin-top:10px">
@@ -584,10 +601,27 @@ document.getElementById('profName').addEventListener('input',function(){
   checkNameDuplicate(this.value.trim());
 });
 
+function refreshCloud(){
+  fetch('/api/cloudlog').then(function(r){return r.json();}).then(function(d){
+    var s=document.getElementById('cloud-status');
+    if(s) s.textContent='Status: '+(d.enabled?'enabled ✓':'disabled')+'  ·  Firing ID: #'+d.firingId;
+    var lnk=document.getElementById('cloud-link');
+    if(lnk&&d.dashboardUrl){lnk.href=d.dashboardUrl;lnk.style.opacity=1;}
+    else if(lnk){lnk.style.opacity=.35;}
+  }).catch(function(){});
+}
+function setCloud(en){
+  fetch('/api/cloudlog',{method:'POST',
+    headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:'enabled='+en})
+    .then(function(){refreshCloud();}).catch(function(){});
+}
+
 loadProfiles();
 
 poll();
 refreshLog();
+refreshCloud();
 setInterval(refreshLog, 300000);
 </script>
 </body>
