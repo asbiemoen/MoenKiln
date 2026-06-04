@@ -33,7 +33,7 @@ app.http('firings', {
       `);
       return { status: 200, jsonBody: r.rows };
     } catch (err) {
-      ctx.log.error('firings query:', err.message);
+      ctx.error('firings query:', err.message);
       return { status: 500, body: 'Database error' };
     }
   },
