@@ -38,7 +38,7 @@ app.http('auth-request', {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: 'Moen Kiln Cloud Log <kiln@moenmedia.no>',
+          from: 'Moen Kiln Cloud Log <post@kirkepasset.no>',
           to: email,
           subject: 'Logg inn – Moen Kiln Cloud Log',
           html: `<p>Klikk lenken for å logge inn i Moen Kiln Cloud Log:</p>
