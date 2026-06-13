@@ -1,5 +1,5 @@
 // Moen Kiln – Arduino Uno R4 WiFi
-// 2026-06-04
+// 2026-06-13
 
 #include <SPI.h>
 #include <Adafruit_MAX31855.h>
@@ -440,11 +440,27 @@ void triggerAlarm(const __FlashStringHelper* alarmMsg, uint8_t evType) {
 
 // ── Nødstopp ──────────────────────────────────────────────────────────────────
 void handleEstop() {
-  if (!estopAnnounced) {
-    estopAnnounced = true; if (kilnState != ERR) kilnState = ESTOPPED; pidOutput = 0;
-    logEvent(EV_NODSTOPP);
-    Serial.println(F("ESTOP – type 'reset'"));
+  if (estopAnnounced) return;
+  estopAnnounced = true;
+  digitalWrite(PIN_RELAY, LOW); pidOutput = 0;
+
+  // Alarm-driven stop (thermocouple / max-temp): triggerAlarm() already set ERR
+  // and sent the report. Stay latched in ERR and require an explicit 'reset'.
+  if (kilnState == ERR) {
+    Serial.println(F("ERR latched – type 'reset'"));
+    return;
   }
+
+  // Physical emergency stop: end the firing automatically (closes #70).
+  // Finalize the report/cloud log, then return to IDLE without a manual reset.
+  kilnState = ESTOPPED;
+  logEvent(EV_NODSTOPP);
+  maybeSendReport();
+  estopFlag = false; estopAnnounced = false;
+  kilnState = IDLE; pidI = 0; setpoint = 0;
+  stoppedMs = millis();
+  matrixWord4("STOP");
+  Serial.println(F("Emergency stop – firing ended"));
 }
 
 
