@@ -1232,6 +1232,21 @@ void startProfile(const Profile* p) {
   Serial.print(F("Starting: ")); Serial.println(p->name);
   readTemp();
   if (sensorMissing) { kilnState = IDLE; return; }
+
+  // Skip-ahead (#71): if the kiln is already hot, skip leading rising segments
+  // whose target the kiln has already climbed past, so the firing resumes at the
+  // segment matching the current temperature instead of treating early segments
+  // as cooling phases. Never skips past the last segment, and only touches the
+  // leading run at start — later cooling segments are left untouched.
+  while (segIdx < profile->segCount - 1 &&
+         profile->segments[segIdx].targetTemp <= currentTemp) {
+    segIdx++;
+  }
+  if (segIdx > 0) {
+    Serial.print(F("Skip-ahead: starting at segment ")); Serial.print(segIdx + 1);
+    Serial.print(F(" (kiln at ")); Serial.print(currentTemp, 0); Serial.println(F("C)"));
+  }
+
   firingId++;
   cloudLogNewFiring();
   EEPROM.update(EEPROM_PLOG_FLAG, 0);
