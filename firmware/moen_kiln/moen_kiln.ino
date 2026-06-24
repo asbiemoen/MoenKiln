@@ -1,5 +1,5 @@
 // Moen Kiln – Arduino Uno R4 WiFi
-// 2026-06-24
+// 2026-06-24  TC gain calibration (#81) + ceiling plateau / heating-fault handling (#83)
 
 #include <SPI.h>
 #include <Adafruit_MAX31855.h>
@@ -36,6 +36,12 @@ uint8_t         segIdx       = 0;
 float           segStartTemp = 0.0f;
 unsigned long   segStartMs   = 0;
 unsigned long   holdStartMs  = 0;
+
+// Ceiling-plateau & heating-fault tracking (issue #83). 0 ms = uninitialised.
+float           stallRefTemp  = 0.0f;
+unsigned long   stallRefMs    = 0;
+float           noHeatRefTemp = 0.0f;
+unsigned long   noHeatRefMs   = 0;
 
 // ── PID ───────────────────────────────────────────────────────────────────────
 float setpoint   = 0.0f;
@@ -216,7 +222,7 @@ void readTemp() {
     triggerAlarm(F("Thermocouple error"));
 
   if (valid) {
-    currentTemp = (float)t;
+    currentTemp = (float)t * TC_GAIN;  // cone-derived calibration, see config.h / #81
     if (currentTemp > peakTemp) peakTemp = currentTemp;
   }
 }
@@ -259,7 +265,25 @@ void tickRamping() {
   if (setpoint == seg.targetTemp) {
     bool atTarget = rampUp ? (currentTemp >= seg.targetTemp - 2.0f)
                            : (currentTemp <= seg.targetTemp + 2.0f);
-    if (atTarget) {
+
+    // Ceiling plateau (#83): on an up-ramp, if the kiln drives near full power
+    // but temperature has stopped rising, treat the target as reached so the
+    // firing advances instead of hanging forever. Window resets while climbing.
+    bool plateau = false;
+    if (rampUp && !atTarget) {
+      if (stallRefMs == 0 || currentTemp >= stallRefTemp + STALL_RISE_C) {
+        stallRefMs = millis(); stallRefTemp = currentTemp;   // (re)start window
+      } else if (pidOutput >= STALL_MIN_DUTY &&
+                 millis() - stallRefMs >= STALL_WINDOW_MS) {
+        plateau = true;
+        logEvent(EV_PLATEAU);
+        Serial.print(F("Plateau at ceiling (")); Serial.print(currentTemp, 0);
+        Serial.print(F("C / target ")); Serial.print(seg.targetTemp, 0);
+        Serial.println(F("C) – advancing"));
+      }
+    }
+
+    if (atTarget || plateau) {
       if (seg.holdMin > 0) {
         kilnState = HOLDING; holdStartMs = millis();
         logEvent(EV_HOLD);
@@ -379,6 +403,8 @@ void startSegment() {
   const Segment& seg = profile->segments[segIdx];
   segStartTemp = currentTemp;
   segStartMs   = millis();
+  stallRefMs   = 0;   // reset plateau/heating-fault windows for the new segment (#83)
+  noHeatRefMs  = 0;
   setpoint = segStartTemp;
   Serial.print(F("Segment: ")); Serial.print(seg.name);
   Serial.print(F("  Target: ")); Serial.print(seg.targetTemp, 0); Serial.println(F("C"));
@@ -434,6 +460,20 @@ void updateStatusLED() {
 // ── Alarmer ───────────────────────────────────────────────────────────────────
 void checkAlarms() {
   if (currentTemp > MAX_TEMP_C) triggerAlarm(F("Max temperature exceeded"), EV_ERR_MAXTEMP);
+
+  // Heating fault (#83): if we drive near full power but temperature *falls*
+  // and stays down, the heating chain has failed (element / relay / open door).
+  // A flat plateau is handled separately in tickRamping; only a real drop alarms.
+  if (pidOutput >= STALL_MIN_DUTY) {
+    if (noHeatRefMs == 0 || currentTemp >= noHeatRefTemp) {
+      noHeatRefMs = millis(); noHeatRefTemp = currentTemp;   // new high → reset
+    } else if (currentTemp <= noHeatRefTemp - NOHEAT_DROP_C &&
+               millis() - noHeatRefMs >= NOHEAT_WINDOW_MS) {
+      triggerAlarm(F("Heating fault: temperature falling at full power"), EV_ERR_NOHEAT);
+    }
+  } else {
+    noHeatRefMs = 0;   // not driving hard → don't evaluate
+  }
 }
 
 void triggerAlarm(const __FlashStringHelper* alarmMsg, uint8_t evType) {
@@ -494,6 +534,8 @@ const char* eventStr(uint8_t t) {
     case EV_NODSTOPP:   return "Emergency stop";
     case EV_FERDIG:     return "Firing complete";
     case EV_AVBRYT:     return "Cancelled by user";
+    case EV_PLATEAU:    return "Ceiling reached (advanced)";
+    case EV_ERR_NOHEAT: return "ERR: Temperature falling at full power";
     default:            return "Unknown";
   }
 }

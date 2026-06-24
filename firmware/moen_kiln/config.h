@@ -36,6 +36,8 @@ struct DataPoint { uint16_t sec; uint16_t temp; uint16_t sp; uint8_t segIdx; uin
 #define EV_NODSTOPP     5   // Nødstopp
 #define EV_FERDIG       6   // Brenning ferdig
 #define EV_AVBRYT       7   // Avbrutt av bruker
+#define EV_PLATEAU      8   // Tak nådd (platå) – avanserte programmet
+#define EV_ERR_NOHEAT   9   // FEIL: Temp synker ved full effekt
 struct Event { uint16_t sec; uint8_t type; uint16_t temp; };
 
 // ── Webserver ────────────────────────────────────────────────────────────────
@@ -51,8 +53,27 @@ struct Event { uint16_t sec; uint8_t type; uint16_t temp; };
 #define RELAY_WINDOW_MS  30000UL
 #define RELAY_MIN_ON_MS  3000UL   // kortere pulser droppes – unngår rask relé-sykling (10 % av vindu)
 
+// ── Termoelement-kalibrering ───────────────────────────────────────────────────
+// MAX31855 reads ~4.5 % low at high temperature (cone-derived, see issue #81/#78):
+// bisque cone 05 (1046C) vs displayed 1000.5C, glaze cone 6 (1222C) vs 1169.5C →
+// both give gain ~1.045, and ~0 error at room temp → multiplicative correction.
+// corrected = raw * TC_GAIN. Validate with a witness cone before fully trusting.
+#define TC_GAIN          1.045f
+
 // ── Sikkerhet ────────────────────────────────────────────────────────────────
 #define MAX_TEMP_C       1300.0f
+
+// Ceiling plateau (issue #83): if the kiln drives near full power but temperature
+// stops rising, treat the target as "reached" and advance the program instead of
+// hanging forever. Resets whenever temp climbs >= STALL_RISE_C.
+#define STALL_RISE_C     3.0f       // min rise to count as "still climbing"
+#define STALL_WINDOW_MS  900000UL   // 15 min flat at high duty → plateau
+#define STALL_MIN_DUTY   90.0f      // only evaluate when driving this hard (%)
+
+// Heating fault (issue #83): temperature falling while driving at full power =
+// dead element / relay / open door → alarm. Conservative to avoid false positives.
+#define NOHEAT_DROP_C    15.0f
+#define NOHEAT_WINDOW_MS 600000UL   // 10 min
 
 // ── EEPROM-layout ─────────────────────────────────────────────────────────────
 // E-post konfigurasjon
