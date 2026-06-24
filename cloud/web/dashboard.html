@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>MilnCloudLog</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2/dist/chartjs-plugin-zoom.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#111;color:#eee;font-family:system-ui,sans-serif;padding:0;max-width:720px;margin:0 auto}
@@ -31,6 +33,15 @@ table{width:100%;border-collapse:collapse;font-size:.78em;min-width:340px}
 th{text-align:left;padding:5px 6px;color:#666;font-weight:normal;border-bottom:1px solid #333;position:sticky;top:0;background:#222}
 td{padding:5px 6px;border-bottom:1px solid #1e1e1e}
 .live-badge{background:#1a3010;color:#88cc44;border-radius:5px;padding:2px 9px;font-size:.78em;margin-left:8px}
+.st-badge{display:inline-block;border-radius:5px;padding:2px 9px;font-size:.78em;margin-left:8px;white-space:nowrap}
+.st-done{background:#13261a;color:#5fbf7a}
+.st-stopped{background:#2a2317;color:#caa45a}
+.st-estop{background:#2a1010;color:#ff6666}
+.st-disc{background:#241c10;color:#cc9944}
+.btn-csv{background:none;border:1px solid #ff7700;color:#ff7700;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:.82em;transition:all .15s}
+.btn-csv:hover{background:#ff7700;color:#fff}
+.btn-zoom{background:none;border:1px solid #333;color:#888;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:.78em}
+.btn-zoom:hover{border-color:#555;color:#ccc}
 .pill{display:inline-block;background:#2a2a2a;border-radius:5px;padding:3px 10px;font-size:.82em;margin:2px}
 .pill b{color:#ff9933}
 #msg{text-align:center;color:#555;padding:24px}
@@ -91,7 +102,10 @@ td{padding:5px 6px;border-bottom:1px solid #1e1e1e}
       </div>
       <div id="tc-stats" style="color:#555;font-size:.84em">Laster…</div>
     </div>
-    <div class="card" style="padding:8px"><canvas id="tc-cv" height="200"></canvas></div>
+    <div class="card" style="padding:8px">
+      <div style="text-align:right;margin-bottom:4px"><button class="btn-zoom" onclick="tcChart && tcChart.resetZoom()">Tilbakestill zoom</button></div>
+      <canvas id="tc-cv" height="200"></canvas>
+    </div>
     <div class="card" style="padding:10px 8px">
       <div class="tbl-wrap">
         <table>
@@ -115,6 +129,34 @@ let chart        = null;
 let tcChart      = null;
 let tcBatches    = [];
 let detailCharts = new Map();
+let firingsById  = {};          // firing_id -> row (carries ended_at / end_reason)
+let curFiring    = { id: null, data: [] };
+
+const LIVE_WINDOW_MS = 3 * 60 * 1000;
+const DISC_WINDOW_MS = 6 * 60 * 60 * 1000;   // beyond this, a firing with no end signal is just history
+
+// Firing status from a row carrying ended_at/end_reason and a last-activity time:
+//   ended (explicit signal) · live (fresh points) · disconnected (recently
+//   stale, no end signal) · old (long stale → treated as history, no badge).
+function firingStatus(endedAt, endReason, lastActivity) {
+  if (endedAt) return { kind: 'ended', reason: endReason || 'completed' };
+  const age = lastActivity ? Date.now() - new Date(lastActivity) : Infinity;
+  if (age < LIVE_WINDOW_MS) return { kind: 'live' };
+  if (age < DISC_WINDOW_MS) return { kind: 'disconnected' };
+  return { kind: 'old' };
+}
+
+function statusBadge(st) {
+  switch (st.kind) {
+    case 'live': return '<span class="live-badge">● LIVE</span>';
+    case 'disconnected': return '<span class="st-badge st-disc">⚠ Frakoblet</span>';
+    case 'ended':
+      if (st.reason === 'estop')   return '<span class="st-badge st-estop">⚠ Nødstopp</span>';
+      if (st.reason === 'stopped') return '<span class="st-badge st-stopped">■ Stoppet</span>';
+      return '<span class="st-badge st-done">✓ Fullført</span>';
+  }
+  return '';   // 'old' → no badge
+}
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 async function init() {
@@ -178,13 +220,16 @@ async function loadFirings() {
   if (!data.length) { msg.textContent = 'Ingen brenninger registrert ennå.'; return; }
   msg.style.display = 'none';
 
+  firingsById = {};
+  data.forEach(f => { firingsById[f.firing_id] = f; });
+
   list.innerHTML = data.map(f => {
     const date = new Date(f.started_at).toLocaleDateString('no-NO', { day:'2-digit', month:'2-digit', year:'numeric' });
     const time = new Date(f.started_at).toLocaleTimeString('no-NO', { hour:'2-digit', minute:'2-digit' });
-    const live = Date.now() - new Date(f.last_seen_at) < 3 * 60 * 1000;
+    const st   = firingStatus(f.ended_at, f.end_reason, f.last_seen_at);
     return `<div class="firing-row" onclick="loadFiring(${f.firing_id})">
       <span class="fid">#${f.firing_id}</span>
-      <span class="fmeta">${date} ${time}&ensp;·&ensp;${f.point_count} pt${live ? '<span class="live-badge">● LIVE</span>' : ''}</span>
+      <span class="fmeta">${date} ${time}&ensp;·&ensp;${f.point_count} pt${statusBadge(st)}</span>
       <span class="fmax">${f.max_temp_c ? Math.round(f.max_temp_c) + '°C' : '--'}${f.had_error ? '<span class="ferr">⚠</span>' : ''}</span>
     </div>`;
   }).join('');
@@ -217,8 +262,12 @@ async function loadFiring(id) {
 
 function renderFiring(id, data) {
   if (chart) { chart.destroy(); chart = null; }
+  curFiring = { id, data };
   const view   = document.getElementById('view-detail');
-  const isLive = data.length && (Date.now() - new Date(data[data.length - 1].ts) < 3 * 60 * 1000);
+  const row     = firingsById[id];
+  const lastTs  = data.length ? data[data.length - 1].ts : (row && row.last_seen_at);
+  const st      = firingStatus(row && row.ended_at, row && row.end_reason, lastTs);
+  const badge   = statusBadge(st);
   const maxTemp  = data.reduce((m, p) => Math.max(m, p.temp_c || 0), 0);
   const lastSec  = data.length ? (data[data.length - 1].sec_elapsed || 0) : 0;
   const h = Math.floor(lastSec / 3600), m = Math.floor((lastSec % 3600) / 60);
@@ -228,13 +277,17 @@ function renderFiring(id, data) {
     <div class="card">
       <div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:10px">
         <span style="color:#ff7700;font-weight:700;font-size:1.1em">Brenning #${id}</span>
-        ${isLive ? '<span class="live-badge">● LIVE</span>' : ''}
+        ${badge}
+        <button class="btn-csv" style="margin-left:auto" onclick="downloadFiringCsv()"${data.length ? '' : ' disabled'}>⬇ Last ned CSV</button>
       </div>
       <span class="pill">Maks: <b>${Math.round(maxTemp)}°C</b></span>
       <span class="pill">Varighet: <b>${h}t ${m}m</b></span>
       <span class="pill">Datapunkter: <b>${data.length}</b></span>
     </div>
-    <div class="card" style="padding:8px"><canvas id="cv" height="200"></canvas></div>
+    <div class="card" style="padding:8px">
+      <div style="text-align:right;margin-bottom:4px"><button class="btn-zoom" onclick="chart && chart.resetZoom()">Tilbakestill zoom</button></div>
+      <canvas id="cv" height="200"></canvas>
+    </div>
     <div class="card" style="padding:10px 8px">
       <div class="tbl-wrap">
         <table>
@@ -268,7 +321,13 @@ function renderFiring(id, data) {
         x: { ticks: { color: '#555', maxTicksLimit: 10 }, grid: { color: '#2a2a2a' } },
         y: { ticks: { color: '#555' }, grid: { color: '#2a2a2a' } },
       },
-      plugins: { legend: { labels: { color: '#aaa', boxWidth: 14 } } },
+      plugins: {
+        legend: { labels: { color: '#aaa', boxWidth: 14 } },
+        zoom: {
+          pan:  { enabled: true, mode: 'x' },
+          zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' },
+        },
+      },
     },
   });
 
@@ -294,6 +353,30 @@ function backToList() {
   if (chart)     { chart.destroy(); chart = null; }
   document.getElementById('view-detail').style.display = 'none';
   document.getElementById('view-list').style.display   = '';
+}
+
+// ── CSV export ────────────────────────────────────────────────────────────────
+function downloadFiringCsv() {
+  const { id, data } = curFiring;
+  if (!data || !data.length) return;
+
+  const cols = ['ts', 'sec_elapsed', 'temp_c', 'setpoint_c', 'relay', 'duty_pct', 'segment', 'is_err'];
+  const esc  = v => {
+    if (v == null) return '';
+    const s = String(v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const csv = cols.join(',') + '\n' +
+    data.map(p => cols.map(c => esc(p[c])).join(',')).join('\n') + '\n';
+
+  const d     = new Date(data[0].ts);
+  const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const blob  = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const a     = document.createElement('a');
+  a.href      = URL.createObjectURL(blob);
+  a.download  = `brenning-${id}-${stamp}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
 // ── TC log ────────────────────────────────────────────────────────────────────
@@ -376,7 +459,13 @@ async function loadTcLog(hours, btn) {
         x: { ticks: { color: '#555', maxTicksLimit: 8 }, grid: { color: '#2a2a2a' } },
         y: { ticks: { color: '#555' }, grid: { color: '#2a2a2a' } },
       },
-      plugins: { legend: { display: false } },
+      plugins: {
+        legend: { display: false },
+        zoom: {
+          pan:  { enabled: true, mode: 'x' },
+          zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' },
+        },
+      },
     },
   });
 

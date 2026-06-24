@@ -1,5 +1,5 @@
 // Moen Kiln – Arduino Uno R4 WiFi
-// 2026-06-13
+// 2026-06-24
 
 #include <SPI.h>
 #include <Adafruit_MAX31855.h>
@@ -186,6 +186,7 @@ void loop() {
     printStatus();
     logData();
     maybeSendCloudPoint(now);
+    cloudLogTick(now);
     tcLogTick(now);
     updateLED();
 
@@ -228,7 +229,9 @@ void tick() {
     Serial.println(F("=== CONFIG TEST: 4h timeout – sending report ==="));
     logEvent(EV_FERDIG);
     kilnState = COMPLETE; pidOutput = 0;
+    digitalWrite(PIN_RELAY, LOW);
     maybeSendReport();
+    cloudLogEndFiring("completed");
     return;
   }
   switch (kilnState) {
@@ -361,9 +364,11 @@ void nextSegment() {
   segIdx++;
   if (segIdx >= profile->segCount) {
     kilnState = COMPLETE; pidOutput = 0;
+    digitalWrite(PIN_RELAY, LOW);
     Serial.println(F("=== FIRING COMPLETE ==="));
     logEvent(EV_FERDIG);
     maybeSendReport();
+    cloudLogEndFiring("completed");
     return;
   }
   logEvent(EV_SEGMENT);
@@ -436,6 +441,7 @@ void triggerAlarm(const __FlashStringHelper* alarmMsg, uint8_t evType) {
   logEvent(evType);
   Serial.print(F("ALARM: ")); Serial.println(alarmMsg);
   maybeSendReport();
+  cloudLogEndFiring("estop");
 }
 
 // ── Nødstopp ──────────────────────────────────────────────────────────────────
@@ -456,6 +462,7 @@ void handleEstop() {
   kilnState = ESTOPPED;
   logEvent(EV_NODSTOPP);
   maybeSendReport();
+  cloudLogEndFiring("estop");
   estopFlag = false; estopAnnounced = false;
   kilnState = IDLE; pidI = 0; setpoint = 0;
   stoppedMs = millis();
@@ -728,8 +735,10 @@ void checkStartButton() {
       drawCancelCountdown(min(1.0f, (float)(held - 500) / 4500.0f));
       if (held >= 5000) {
         cancelHeld = false; holdStart = 0;
+        digitalWrite(PIN_RELAY, LOW);
         logEvent(EV_AVBRYT);
         maybeSendReport();
+        cloudLogEndFiring("stopped");
         estopFlag = false; estopAnnounced = false;
         kilnState = IDLE; pidOutput = 0; pidI = 0; setpoint = 0;
         showingIP = false;
@@ -1096,16 +1105,19 @@ void handleHTTP() {
 
   } else if (req.startsWith("POST /api/stop")) {
     if (kilnState != IDLE) {
-      maybeSendReport();
-      logEvent(EV_AVBRYT);
       digitalWrite(PIN_RELAY, LOW);
+      maybeSendReport();
+      cloudLogEndFiring("stopped");
+      logEvent(EV_AVBRYT);
       kilnState = IDLE; pidOutput = 0; pidI = 0; setpoint = 0;
       stoppedMs = millis();
     }
     httpOK(client, "application/json"); client.print(F("{\"ok\":true}"));
 
   } else if (req.startsWith("POST /api/reset")) {
+    digitalWrite(PIN_RELAY, LOW);
     maybeSendReport();
+    if (kilnState != IDLE) cloudLogEndFiring("stopped");
     estopFlag = false; estopAnnounced = false;
     kilnState = IDLE; pidOutput = 0; pidI = 0; setpoint = 0;
     matrixClear();
@@ -1189,10 +1201,12 @@ void handleSerial() {
   } else if (cmd == "relay off") {
     manualRelay = false; Serial.println(F("Relay: OFF"));
   } else if (cmd == "stop")    {
-    if (kilnState != IDLE) { maybeSendReport(); logEvent(EV_AVBRYT); digitalWrite(PIN_RELAY, LOW); kilnState = IDLE; pidOutput = 0; pidI = 0; setpoint = 0; stoppedMs = millis(); }
+    if (kilnState != IDLE) { digitalWrite(PIN_RELAY, LOW); maybeSendReport(); cloudLogEndFiring("stopped"); logEvent(EV_AVBRYT); kilnState = IDLE; pidOutput = 0; pidI = 0; setpoint = 0; stoppedMs = millis(); }
     Serial.println(F("Stopped"));
   } else if (cmd == "reset")   {
+    digitalWrite(PIN_RELAY, LOW);
     maybeSendReport();
+    if (kilnState != IDLE) cloudLogEndFiring("stopped");
     estopFlag = false; estopAnnounced = false;
     kilnState = IDLE; pidOutput = 0; pidI = 0; setpoint = 0;
     matrixClear();

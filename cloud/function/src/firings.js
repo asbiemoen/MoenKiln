@@ -21,15 +21,18 @@ app.http('firings', {
     try {
       const r = await getPool().query(`
         SELECT
-          firing_id,
-          MIN(ts)     AS started_at,
-          MAX(ts)     AS last_seen_at,
-          COUNT(*)    AS point_count,
-          MAX(temp_c) AS max_temp_c,
-          BOOL_OR(is_err) AS had_error
-        FROM firing_log
-        GROUP BY firing_id
-        ORDER BY firing_id DESC
+          fl.firing_id,
+          MIN(fl.ts)     AS started_at,
+          MAX(fl.ts)     AS last_seen_at,
+          COUNT(*)       AS point_count,
+          MAX(fl.temp_c) AS max_temp_c,
+          BOOL_OR(fl.is_err) AS had_error,
+          fm.ended_at,
+          fm.end_reason
+        FROM firing_log fl
+        LEFT JOIN firing_meta fm ON fm.firing_id = fl.firing_id
+        GROUP BY fl.firing_id, fm.ended_at, fm.end_reason
+        ORDER BY fl.firing_id DESC
       `);
       return { status: 200, jsonBody: r.rows };
     } catch (err) {
