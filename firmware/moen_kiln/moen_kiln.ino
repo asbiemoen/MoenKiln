@@ -1,5 +1,6 @@
 // Moen Kiln – Arduino Uno R4 WiFi
 // 2026-06-30  Runtime-configurable TC gain via web UI, persisted in EEPROM (#88)
+// 2026-06-30  Controlled cooling: PID drives elements on descending ramps (#85)
 // 2026-06-30  Log UI: newest entry first + 4 min auto-refresh (#86)
 // 2026-06-24  TC gain calibration (#81) + ceiling plateau / heating-fault handling (#83)
 
@@ -312,7 +313,11 @@ void tickRamping() {
     }
   }
 
-  pidOutput = (!rampUp && currentTemp <= setpoint) ? 0 : computePID(setpoint, currentTemp);
+  // Controlled cooling (#85): a descending ramp must drive the elements to hold
+  // the programmed cooling rate, exactly like an up-ramp. computePID returns 0 on
+  // its own when the kiln is above setpoint (cooling too slow), so no direction
+  // special-case is needed here. Pure free-fall stays in FREE_COOL (rate == 0).
+  pidOutput = computePID(setpoint, currentTemp);
   checkAlarms();
 }
 
@@ -424,6 +429,8 @@ void startSegment() {
   segStartMs   = millis();
   stallRefMs   = 0;   // reset plateau/heating-fault windows for the new segment (#83)
   noHeatRefMs  = 0;
+  pidI = 0.0f; pidLastErr = 0.0f;  // clear integral so a saturated up-ramp doesn't
+                                   // fire elements into the following cool (#85)
   setpoint = segStartTemp;
   Serial.print(F("Segment: ")); Serial.print(seg.name);
   Serial.print(F("  Target: ")); Serial.print(seg.targetTemp, 0); Serial.println(F("C"));
@@ -483,7 +490,11 @@ void checkAlarms() {
   // Heating fault (#83): if we drive near full power but temperature *falls*
   // and stays down, the heating chain has failed (element / relay / open door).
   // A flat plateau is handled separately in tickRamping; only a real drop alarms.
-  if (pidOutput >= STALL_MIN_DUTY) {
+  // Skip during a controlled cool (#85): there the temperature is *meant* to fall
+  // while the elements fire to hold the rate, which would otherwise false-trigger.
+  bool descendingRamp = (kilnState == RAMPING &&
+                         profile->segments[segIdx].targetTemp < segStartTemp);
+  if (!descendingRamp && pidOutput >= STALL_MIN_DUTY) {
     if (noHeatRefMs == 0 || currentTemp >= noHeatRefTemp) {
       noHeatRefMs = millis(); noHeatRefTemp = currentTemp;   // new high → reset
     } else if (currentTemp <= noHeatRefTemp - NOHEAT_DROP_C &&
@@ -1360,7 +1371,10 @@ void startProfile(const Profile* p) {
 const char* stateStr() {
   switch (kilnState) {
     case IDLE:      return "IDLE";
-    case RAMPING:   return "RAMP";
+    // A descending ramp is a controlled cool, not a heat-up (#85): report it as
+    // COOL so the UI shows "Cooling down" instead of "Heating up".
+    case RAMPING:   return (profile->segments[segIdx].targetTemp < segStartTemp)
+                             ? "COOL" : "RAMP";
     case HOLDING:   return "HOLD";
     case FREE_COOL: return "COOL";
     case COMPLETE:  return "DONE";
