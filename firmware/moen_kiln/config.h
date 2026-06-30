@@ -58,7 +58,11 @@ struct Event { uint16_t sec; uint8_t type; uint16_t temp; };
 // bisque cone 05 (1046C) vs displayed 1000.5C, glaze cone 6 (1222C) vs 1169.5C →
 // both give gain ~1.045, and ~0 error at room temp → multiplicative correction.
 // corrected = raw * TC_GAIN. Validate with a witness cone before fully trusting.
+// This is the factory default; the live value is runtime-configurable and persisted
+// in EEPROM (#88), so it can be re-trimmed after a cone check without reflashing.
 #define TC_GAIN          1.045f
+#define TC_GAIN_MIN      0.90f      // clamp range for the runtime gain – reject outside
+#define TC_GAIN_MAX      1.15f
 
 // ── Sikkerhet ────────────────────────────────────────────────────────────────
 #define MAX_TEMP_C       1300.0f
@@ -106,7 +110,11 @@ struct Event { uint16_t sec; uint8_t type; uint16_t temp; };
 // Cloud logging
 #define EEPROM_CLOUD_ENABLED    6351    // 1 byte : 0x01 = cloud logging on
 #define EEPROM_CLOUD_FIRING_ID  6352    // 2 bytes: uint16_t persistent firing counter
-// 6354 onwards: free  (8192 bytes total EEPROM)
+
+// Thermocouple gain calibration (runtime-configurable, #88)  0x47 = valid
+#define EEPROM_TCGAIN_FLAG      6354    // 1 byte : 0x47 = runtime gain stored
+#define EEPROM_TCGAIN_VAL       6355    // 4 bytes: float TC gain → ends at 6359
+// 6359 onwards: free  (8192 bytes total EEPROM)
 
 // Custom firing profiles (user-editable; default profiles are compile-time constants)  0x46 = valid
 #define MAX_CUSTOM_PROFILES    5
