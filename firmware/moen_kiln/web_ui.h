@@ -74,6 +74,10 @@ input:checked+.tsl:before{transform:translateX(16px);background:#fff}
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
   <h1 style="margin:0">🔥 Moen Kiln</h1>
   <div style="display:flex;gap:14px;align-items:center">
+    <div class="trow" style="margin:0" title="Thermocouple gain calibration (edit in Settings)">
+      <span class="trow-label">Gain</span>
+      <span class="trow-status" id="tcgain-top">--</span>
+    </div>
     <div class="trow" style="margin:0">
       <span class="trow-label">TC log</span>
       <label class="tgl"><input type="checkbox" id="tc-toggle" onchange="toggleTcLog(this.checked)"><span class="tsl"></span></label>
@@ -194,6 +198,13 @@ input:checked+.tsl:before{transform:translateX(16px);background:#fff}
 <input class="inp" id="efrom" type="email" placeholder="From: miln@your-domain.com">
 <input class="inp" id="ekey" type="password" placeholder="Resend API key (leave blank to keep existing)">
 <button class="go" style="width:100%" onclick="saveSet()">Save settings</button>
+<p class="shead" style="margin-top:14px">🌡️ Thermocouple gain</p>
+<p style="font-size:.78em;color:#888;margin:0 0 6px">Multiplicative calibration (corrected = raw × gain). Re-trim after a witness-cone check. Only editable when idle.</p>
+<div style="display:flex;gap:8px;align-items:center">
+  <input class="inp" id="tcgain" type="number" step="0.001" style="margin:0" placeholder="1.045">
+  <button class="go" id="btn-savegain" style="flex:0 0 auto;padding:10px 14px" onclick="saveGain()">Save</button>
+</div>
+<div id="tcgain-info" style="font-size:.78em;color:#888;margin-top:4px;min-height:1.1em"></div>
 </div>
 </details>
 </div>
@@ -390,6 +401,26 @@ function saveSet(){
     +'&key='+encodeURIComponent(document.getElementById('ekey').value);
   fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:b})
     .then(function(){alert('Saved!');});
+}
+function loadGain(){
+  fetch('/api/tcgain').then(function(r){return r.json();}).then(function(d){
+    document.getElementById('tcgain-top').textContent=Number(d.gain).toFixed(3);
+    var inp=document.getElementById('tcgain');
+    inp.value=Number(d.gain).toFixed(3);inp.min=d.min;inp.max=d.max;
+    document.getElementById('btn-savegain').disabled=!d.idle;
+    document.getElementById('tcgain-info').textContent=
+      'Range '+d.min+'–'+d.max+', default '+Number(d.default).toFixed(3)+(d.idle?'':' · locked (firing in progress)');
+  }).catch(function(){});
+}
+function saveGain(){
+  var v=parseFloat(document.getElementById('tcgain').value);
+  if(isNaN(v)){alert('Enter a number');return;}
+  if(!confirm('Change thermocouple gain to '+v.toFixed(3)+'?\n\nWrong values can over- or under-fire the kiln.'))return;
+  fetch('/api/tcgain',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'gain='+encodeURIComponent(v)})
+    .then(function(r){return r.json();}).then(function(d){
+      if(d.ok){loadGain();alert('Saved! Gain = '+Number(d.gain).toFixed(3));}
+      else alert('Not saved: '+(d.error==='not idle'?'kiln must be idle':d.error==='out of range'?'value out of range':d.error||'unknown'));
+    }).catch(function(){alert('Save failed');});
 }
 // ── Profile editor ────────────────────────────────────────────────────────────
 var allProfiles=[];
@@ -656,6 +687,7 @@ loadProfiles();
 poll();
 refreshLog();
 refreshCloud();
+loadGain();
 setInterval(refreshLog, 240000);
 </script>
 </body>

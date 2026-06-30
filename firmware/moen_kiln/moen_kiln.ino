@@ -1,4 +1,5 @@
 // Moen Kiln – Arduino Uno R4 WiFi
+// 2026-06-30  Runtime-configurable TC gain via web UI, persisted in EEPROM (#88)
 // 2026-06-30  Controlled cooling: PID drives elements on descending ramps (#85)
 // 2026-06-30  Log UI: newest entry first + 4 min auto-refresh (#86)
 // 2026-06-24  TC gain calibration (#81) + ceiling plateau / heating-fault handling (#83)
@@ -31,6 +32,7 @@ State kilnState = IDLE;
 float currentTemp = 0.0f;
 float prevTemp    = 0.0f;   // forrige avlesning for delta-beregning
 float peakTemp    = 0.0f;   // høyeste temperatur i denne brenningen
+float tcGain      = TC_GAIN; // live TC gain; default fra config.h, overstyres fra EEPROM (#88)
 
 // ── Aktiv profil ──────────────────────────────────────────────────────────────
 const Profile*  profile      = nullptr;
@@ -157,6 +159,7 @@ void setup() {
 
   loadPersistentLog();
   loadCustomProfiles();
+  loadTcGain();
   setupWiFi();
   cloudLogInit();
 
@@ -204,6 +207,21 @@ void loop() {
   updateStatusLED();
 }
 
+// ── TC gain-kalibrering (runtime, #88) ────────────────────────────────────────
+void loadTcGain() {
+  if (EEPROM.read(EEPROM_TCGAIN_FLAG) == 0x47) {
+    float g; EEPROM.get(EEPROM_TCGAIN_VAL, g);
+    if (g >= TC_GAIN_MIN && g <= TC_GAIN_MAX) { tcGain = g; return; }
+  }
+  tcGain = TC_GAIN;   // fersk enhet eller ugyldig lagret verdi → fabrikkstandard
+}
+
+void saveTcGain(float g) {
+  tcGain = constrain(g, TC_GAIN_MIN, TC_GAIN_MAX);
+  EEPROM.put(EEPROM_TCGAIN_VAL, tcGain);
+  EEPROM.update(EEPROM_TCGAIN_FLAG, 0x47);
+}
+
 // ── Temperaturlesing ──────────────────────────────────────────────────────────
 void readTemp() {
   double t = tc.readCelsius();
@@ -224,7 +242,7 @@ void readTemp() {
     triggerAlarm(F("Thermocouple error"));
 
   if (valid) {
-    currentTemp = (float)t * TC_GAIN;  // cone-derived calibration, see config.h / #81
+    currentTemp = (float)t * tcGain;  // runtime cone-derived calibration, see config.h / #81 / #88
     if (currentTemp > peakTemp) peakTemp = currentTemp;
   }
 }
@@ -1200,6 +1218,29 @@ void handleHTTP() {
     if (newKey.length())  strncpy(key, newKey.c_str(),  49);
     saveEmailConfig(key, to, cc, frm);
     httpOK(client, "application/json"); client.print(F("{\"ok\":true}"));
+
+  } else if (req.startsWith("GET /api/tcgain")) {
+    httpOK(client, "application/json");
+    client.print(F("{\"gain\":"));    client.print(tcGain, 4);
+    client.print(F(",\"default\":")); client.print((float)TC_GAIN, 4);
+    client.print(F(",\"min\":"));     client.print((float)TC_GAIN_MIN, 3);
+    client.print(F(",\"max\":"));     client.print((float)TC_GAIN_MAX, 3);
+    client.print(F(",\"idle\":"));    client.print(kilnState == IDLE ? "true" : "false");
+    client.print('}');
+
+  } else if (req.startsWith("POST /api/tcgain")) {
+    httpOK(client, "application/json");
+    if (kilnState != IDLE) {
+      client.print(F("{\"ok\":false,\"error\":\"not idle\"}"));   // avoid mid-firing jump
+    } else {
+      float g = formParam(body, "gain").toFloat();
+      if (g < TC_GAIN_MIN || g > TC_GAIN_MAX) {
+        client.print(F("{\"ok\":false,\"error\":\"out of range\"}"));
+      } else {
+        saveTcGain(g);
+        client.print(F("{\"ok\":true,\"gain\":")); client.print(tcGain, 4); client.print('}');
+      }
+    }
 
   } else if (req.startsWith("GET /api/cloudlog")) {
     httpOK(client, "application/json");
