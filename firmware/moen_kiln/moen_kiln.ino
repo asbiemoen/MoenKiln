@@ -1,4 +1,5 @@
 // Moen Kiln – Arduino Uno R4 WiFi
+// 2026-06-30  Log UI: newest entry first + 4 min auto-refresh (#86)
 // 2026-06-24  TC gain calibration (#81) + ceiling plateau / heating-fault handling (#83)
 
 #include <SPI.h>

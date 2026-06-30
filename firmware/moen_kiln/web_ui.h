@@ -343,7 +343,7 @@ function refreshLog(){
     setLogButtons(rows.length>0);
     if(!rows.length){tb.innerHTML='<tr><td colspan="6" style="padding:12px 6px;color:#555;text-align:center">No data</td></tr>';return;}
     var html='';
-    rows.forEach(function(r,idx){
+    rows.slice().reverse().forEach(function(r,idx){
       var s=r[0],t=r[1],sp=r[2],si=r[3]&0x7F,relay=(r[3]&0x80)?1:0,pid=r[4]||0;
       var seg=logSegNames[si]||('Seg '+(si+1));
       var bg=idx%2?'background:#1a1a1a':'';
@@ -364,7 +364,7 @@ function refreshLog(){
     if(!evts.length){sec.style.display='none';return;}
     sec.style.display='';
     var html='';
-    evts.forEach(function(e){
+    evts.slice().reverse().forEach(function(e){
       var col=evColors[e.type]||'#888';
       html+='<div style="display:flex;gap:8px;padding:3px 0;border-bottom:1px solid #1a1a1a;align-items:baseline">'
         +'<span style="color:#555;font-size:.75em;min-width:52px">'+fmtSec(e.sec)+'</span>'
@@ -656,7 +656,7 @@ loadProfiles();
 poll();
 refreshLog();
 refreshCloud();
-setInterval(refreshLog, 300000);
+setInterval(refreshLog, 240000);
 </script>
 </body>
 </html>
