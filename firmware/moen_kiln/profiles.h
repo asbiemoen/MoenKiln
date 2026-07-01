@@ -30,6 +30,20 @@ static const Segment SEG_BISQUE[] = {
   { "Bisque 2", 995,  150, 15 },
 };
 
+// ── Iris lustre ───────────────────────────────────────────────────────────────
+// Oxidation, low-temp lustre firing. Peephole/valve may be open up to ~450–500 °C.
+static const Segment SEG_IRISLUSTRE[] = {
+  { "Iris 1", 200,  90, 0  },
+  { "Iris 2", 400,  60, 10 },
+  { "Iris 3", 770, 120, 5  },
+};
+
+// ── Heating ───────────────────────────────────────────────────────────────────
+// Oxidation, warm ceramics up for reglazing.
+static const Segment SEG_HEATING[] = {
+  { "Heating 1", 70, 150, 10 },
+};
+
 // ── Config test: max speed to 1220 °C, then free cool to room temp ────────────
 static const Segment SEG_CONFIGTEST[] = {
   { "Ramp Up",    800, 9999, 0 },
@@ -37,8 +51,10 @@ static const Segment SEG_CONFIGTEST[] = {
 };
 
 static const Profile PROFILES[] = {
-  { "glaze",      "Glaze",       5, SEG_GLAZE      },
+  { "glaze",      "Glaze",       5, SEG_GLAZE       },
   { "bisque",     "Bisque",      2, SEG_BISQUE      },
+  { "irislustre", "Iris lustre", 3, SEG_IRISLUSTRE  },
+  { "heating",    "Heating",     1, SEG_HEATING     },
   { "configtest", "Config Test", 2, SEG_CONFIGTEST  },
 };
 
