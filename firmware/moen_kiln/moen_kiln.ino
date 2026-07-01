@@ -1,4 +1,5 @@
 // Moen Kiln – Arduino Uno R4 WiFi
+// 2026-07-01  Add built-in profiles: Iris lustre + Heating (#90)
 // 2026-06-30  Runtime-configurable TC gain via web UI, persisted in EEPROM (#88)
 // 2026-06-30  Controlled cooling: PID drives elements on descending ramps (#85)
 // 2026-06-30  Log UI: newest entry first + 4 min auto-refresh (#86)
