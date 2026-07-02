@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MilnCloudLog – Hjelp</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#111;color:#eee;font-family:system-ui,sans-serif;max-width:720px;margin:0 auto;line-height:1.55}
+nav{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid #222;margin-bottom:12px}
+.nav-brand{color:#ff7700;font-weight:700;font-size:1.1em;flex:1}
+.nav-link{background:none;border:1px solid #333;color:#888;border-radius:6px;padding:5px 14px;font-size:.85em;text-decoration:none;transition:all .15s}
+.nav-link:hover{border-color:#555;color:#ccc}
+.logout{font-size:.78em;color:#555;cursor:pointer;padding:2px 0}
+.logout:hover{color:#ff7700}
+.main{padding:0 14px 40px}
+.card{background:#222;border-radius:10px;padding:16px 18px;margin-bottom:12px}
+h1{font-size:1.4em;margin-bottom:4px}
+.lead{color:#aaa;font-size:.92em;margin-bottom:16px}
+h2{font-size:1.12em;color:#ff9933;margin:0 0 10px;scroll-margin-top:12px}
+h3{font-size:.98em;color:#fff;margin:16px 0 4px}
+p{margin:6px 0;color:#ddd;font-size:.92em}
+ul{margin:6px 0 6px 20px;font-size:.92em;color:#ddd}
+li{margin:3px 0}
+b{color:#fff}
+.toc{list-style:none;margin:0;columns:2;font-size:.9em}
+.toc li{margin:4px 0}
+.toc a{color:#ff9933;text-decoration:none}
+.toc a:hover{text-decoration:underline}
+kbd{background:#2a2a2a;border:1px solid #3a3a3a;border-radius:4px;padding:1px 7px;font-family:inherit;font-size:.88em;color:#ff9933}
+table{width:100%;border-collapse:collapse;font-size:.88em;margin:8px 0}
+th{text-align:left;padding:6px 8px;color:#888;font-weight:600;border-bottom:1px solid #333}
+td{padding:6px 8px;border-bottom:1px solid #1e1e1e;color:#ddd;vertical-align:top}
+.st-badge{display:inline-block;border-radius:5px;padding:2px 9px;font-size:.82em;white-space:nowrap}
+.live-badge{background:#1a3010;color:#88cc44}
+.st-done{background:#13261a;color:#5fbf7a}
+.st-stopped{background:#2a2317;color:#caa45a}
+.st-estop{background:#2a1010;color:#ff6666}
+.st-disc{background:#241c10;color:#cc9944}
+.note{background:#1c2530;border-left:3px solid #4488cc;border-radius:6px;padding:10px 12px;margin:10px 0;font-size:.9em;color:#cdd8e2}
+.back-top{color:#666;font-size:.82em;text-decoration:none}
+.back-top:hover{color:#ff7700}
+#msg{text-align:center;color:#555;padding:40px}
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-brand">🔥 MilnCloudLog</span>
+  <a class="nav-link" href="dashboard.html">← Dashbord</a>
+  <span class="logout" onclick="logout()">Logg ut</span>
+</nav>
+
+<div id="msg">Laster …</div>
+
+<div class="main" id="content" style="display:none">
+
+  <h1>Hjelp og dokumentasjon</h1>
+  <p class="lead">Slik bruker og stiller du inn Moen Kiln – fra å starte en brenning til å kalibrere termoelementet.</p>
+
+  <div class="card">
+    <h2 id="oversikt">Kort om systemet</h2>
+    <p><b>MILN</b> er ovnens egen styring. Du når den i nettleseren på ovnens IP-adresse når du er på samme nettverk. Der starter og stopper du brenninger, og der ligger alle innstillingene.</p>
+    <p><b>MilnCloudLog</b> – som denne siden hører til – viser brenningene dine i skya: temperaturkurver, logg og status. Slik kan du følge med uten å stå ved ovnen.</p>
+    <ul class="toc">
+      <li><a href="#start">Starte en brenning</a></li>
+      <li><a href="#folge">Følge med underveis</a></li>
+      <li><a href="#logg">Loggen</a></li>
+      <li><a href="#status">Status i skya</a></li>
+      <li><a href="#stopp">Stopp, nødstopp og reset</a></li>
+      <li><a href="#program">Programmene</a></li>
+      <li><a href="#cones">Cones og jevn brenning</a></li>
+      <li><a href="#gain">Kalibrering (TC gain)</a></li>
+      <li><a href="#kjoling">Kontrollert nedkjøling</a></li>
+      <li><a href="#egne">Egne programmer</a></li>
+      <li><a href="#sikkerhet">Sikkerhetsgrenser</a></li>
+      <li><a href="#skylogg">Skylogging</a></li>
+      <li><a href="#epost">E-postrapport</a></li>
+      <li><a href="#innlogging">Innlogging</a></li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <p style="color:#ff9933;font-weight:600;margin-bottom:4px">Del 1 – Daglig bruk</p>
+
+    <h2 id="start">Starte en brenning</h2>
+    <p>Åpne MILN, velg program i nedtrekkslista og trykk <kbd>Start</kbd>. Ovnen begynner på første segment og følger programmet segment for segment til det er ferdig.</p>
+
+    <h2 id="folge">Følge med underveis</h2>
+    <p>Det store tallet er temperaturen akkurat nå. Rett under står fasen ovnen er i:</p>
+    <ul>
+      <li><b>Oppvarming</b> – ovnen varmer opp mot måltemperaturen.</li>
+      <li><b>Hold</b> – ovnen holder temperaturen i det antallet minutter segmentet er satt til.</li>
+      <li><b>Nedkjøling</b> – ovnen kjøler ned mot neste mål.</li>
+    </ul>
+    <p>Segmentene vises som en tidslinje der det aktive er markert. Du ser også raten (°C/t), duty (hvor hardt elementene jobber, fra 0 til 100 %), måltemperaturen for segmentet og hvor lang tid som er igjen. Grafen tegner den målte temperaturen mot settpunktet.</p>
+
+    <h2 id="logg">Loggen</h2>
+    <p>Loggen viser nyeste oppføring øverst og oppdaterer seg selv hvert fjerde minutt – eller trykk <kbd>↻</kbd> for å friske den opp med en gang. Med <kbd>Full log</kbd> og <kbd>Detail</kbd> laster du ned hele brenningen som CSV.</p>
+
+    <h2 id="status">Status i skya</h2>
+    <p>På dashbordet er hver brenning merket med status:</p>
+    <table>
+      <tr><td><span class="st-badge live-badge">● LIVE</span></td><td>Ovnen sender ferske data nå.</td></tr>
+      <tr><td><span class="st-badge st-disc">⚠ Frakoblet</span></td><td>Vi har ikke hørt fra ovnen på en stund, uten at brenningen er avsluttet.</td></tr>
+      <tr><td><span class="st-badge st-done">✓ Fullført</span></td><td>Brenningen kjørte gjennom hele programmet.</td></tr>
+      <tr><td><span class="st-badge st-stopped">■ Stoppet</span></td><td>Brenningen ble stoppet manuelt.</td></tr>
+      <tr><td><span class="st-badge st-estop">⚠ Nødstopp</span></td><td>Ovnen stoppet på grunn av en sikkerhetsfeil.</td></tr>
+    </table>
+
+    <h2 id="stopp">Stopp, nødstopp og reset</h2>
+    <p><kbd>Stop</kbd> avbryter brenningen. Oppdager ovnen en sikkerhetsfeil, går den i nødstopp og kutter strømmen til elementene. Da må du kvittere med <kbd>Reset</kbd> før du kan starte en ny brenning.</p>
+
+    <h2 id="program">Programmene</h2>
+    <p>Disse ligger inne fra før:</p>
+    <table>
+      <tr><th>Program</th><th>Til hva</th></tr>
+      <tr><td><b>Bisque</b></td><td>Råbrenning, opp til 995 °C.</td></tr>
+      <tr><td><b>Glaze</b></td><td>Glasurbrenning til cone 6 (1222 °C), med kontrollert nedkjøling.</td></tr>
+      <tr><td><b>Iris lustre</b></td><td>Lavtbrenning for lustre, opp til 770 °C.</td></tr>
+      <tr><td><b>Heating</b></td><td>Varmer godset forsiktig til 70 °C, for eksempel før omglasering.</td></tr>
+    </table>
+
+    <h2 id="cones">Cones og jevn brenning</h2>
+    <p>Cones måler varmearbeid – både tid og temperatur – ikke bare temperaturen der og da. Legg en cone eller to i ovnen når du vil kontrollere at brenningen faktisk ble som tenkt.</p>
+    <p>Ovnen er varmere øverst enn nederst. Last derfor bunnen luftig og ikke for tett, og løft gjerne godset litt opp fra bunnplata, så det nederste ikke blir underbrent.</p>
+  </div>
+
+  <div class="card">
+    <p style="color:#ff9933;font-weight:600;margin-bottom:4px">Del 2 – Innstillinger (i MILN)</p>
+
+    <h2 id="gain">Kalibrering – termoelement (TC gain)</h2>
+    <p>Termoelementet kan lese litt for lavt ved høy temperatur. Gain er en korreksjonsfaktor som retter opp dette: <b>vist temperatur = målt temperatur × gain</b>.</p>
+    <ul>
+      <li>Du justerer den under <kbd>Settings → Thermocouple gain</kbd>. Gjeldende verdi vises også øverst på MILN-siden.</li>
+      <li>Standardverdien er <b>1.045</b>. Gyldig område er 0.90–1.15.</li>
+      <li>Den kan bare endres når ovnen står i ro, så du ikke får et temperaturhopp midt i en brenning.</li>
+      <li>Juster etter at du har lest en cone: bøyde riktig cone seg for tidlig eller for sent, korriger gain deretter. Verdien lagres i ovnen – du slipper å legge inn ny firmware.</li>
+    </ul>
+    <div class="note">Fordi ovnen er varmere øverst enn nederst, vil en cone høyt oppe alltid bøye seg mer enn termoelementet på midten viser. Kalibrer helst mot en cone plassert ved siden av føleren.</div>
+
+    <h2 id="kjoling">Kontrollert nedkjøling</h2>
+    <p>Et segment som går nedover i temperatur holder nå den nedkjølingsraten du har satt: ovnen fyrer på elementene for at den ikke skal kjøle for fort. Det er nyttig for glasurer som skal kjøles sakte.</p>
+    <p>Vil du heller ha fritt fall – at ovnen kjøler så fort den vil – setter du raten til <b>0</b> på segmentet.</p>
+
+    <h2 id="egne">Egne programmer</h2>
+    <p>Under <kbd>Firing Profiles</kbd> i MILN kan du lage og redigere egne programmer. Hvert segment har tre verdier:</p>
+    <ul>
+      <li><b>Rate</b> – hvor raskt ovnen skal endre temperatur, i °C/t.</li>
+      <li><b>Måltemperatur</b> – temperaturen segmentet sikter mot.</li>
+      <li><b>Hold</b> – hvor mange minutter ovnen skal holde måltemperaturen før den går videre.</li>
+    </ul>
+
+    <h2 id="sikkerhet">Sikkerhetsgrenser</h2>
+    <table>
+      <tr><th>Grense</th><th>Hva som skjer</th></tr>
+      <tr><td><b>Maks temperatur</b></td><td>Over 1300 °C nødstopper ovnen.</td></tr>
+      <tr><td><b>Varmefeil</b></td><td>Faller temperaturen mens elementene står på fullt, tolkes det som feil (element, relé eller åpen dør) og ovnen nødstopper.</td></tr>
+      <tr><td><b>Følerfeil</b></td><td>Mister ovnen kontakten med termoelementet, nødstopper den.</td></tr>
+      <tr><td><b>Tak nådd</b> («Ceiling reached (advanced)»)</td><td>Klarer ovnen ikke å nå måltemperaturen – full effekt i 15 minutter uten å stige – regner den taket som nådd og går videre i programmet. Dette er <b>ikke</b> en feil; det hindrer at brenningen blir hengende.</td></tr>
+    </table>
+    <div class="note">Ser du «Tak nådd» gjentatte ganger på samme segment, er det verdt å sjekke elementene – eller om ovnen rett og slett ikke er bygd for den temperaturen med den lasten.</div>
+
+    <h2 id="skylogg">Skylogging</h2>
+    <p>Bryterne øverst i MILN skrur skylogging og termoelement-logg av og på. Er skylogging på, dukker brenningen opp her på dashbordet mens den pågår.</p>
+
+    <h2 id="epost">E-postrapport</h2>
+    <p>Under <kbd>Settings</kbd> kan du sette opp e-post, slik at du får tilsendt en rapport når en brenning er ferdig.</p>
+
+    <h2 id="innlogging">Innlogging</h2>
+    <p>Du logger inn med en engangslenke som sendes til e-posten din. Lenken gir deg tilgang til dashbordet og denne hjelpesiden.</p>
+
+    <p style="margin-top:16px"><a class="back-top" href="#oversikt">↑ Til toppen</a></p>
+  </div>
+
+</div>
+
+<script>
+const API = 'https://miln-api.azurewebsites.net';
+let token = null;
+
+async function init() {
+  const params   = new URLSearchParams(location.search);
+  const urlToken = params.get('token');
+  if (urlToken) {
+    if (await verifyToken(urlToken)) {
+      token = urlToken;
+      localStorage.setItem('miln_token', token);
+      history.replaceState({}, '', location.pathname);
+    } else { redirect(); return; }
+  } else {
+    token = localStorage.getItem('miln_token');
+    if (!token || !(await verifyToken(token))) { redirect(); return; }
+  }
+  document.getElementById('msg').style.display = 'none';
+  document.getElementById('content').style.display = '';
+}
+
+async function verifyToken(t) {
+  try {
+    const r = await fetch(`${API}/api/auth/verify?token=${encodeURIComponent(t)}`);
+    return r.ok;
+  } catch { return false; }
+}
+
+function redirect() { location.href = 'login.html'; }
+function logout() { localStorage.removeItem('miln_token'); redirect(); }
+
+init();
+</script>
+</body>
+</html>
