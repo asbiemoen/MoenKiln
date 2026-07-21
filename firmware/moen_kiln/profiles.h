@@ -44,6 +44,18 @@ static const Segment SEG_HEATING[] = {
   { "Heating 1", 70, 150, 10 },
 };
 
+// ── Heating Hot ───────────────────────────────────────────────────────────────
+// Oxidation, warmer variant of Heating for a longer soak at 100 °C.
+static const Segment SEG_HEATINGHOT[] = {
+  { "Heating Hot 1", 100, 150, 30 },
+};
+
+// ── Drying Glaze ──────────────────────────────────────────────────────────────
+// Slow, gentle dry-out of freshly glazed ware before firing.
+static const Segment SEG_DRYINGGLAZE[] = {
+  { "Drying Glaze 1", 80, 40, 120 },
+};
+
 // ── Config test: max speed to 1220 °C, then free cool to room temp ────────────
 static const Segment SEG_CONFIGTEST[] = {
   { "Ramp Up",    800, 9999, 0 },
@@ -51,11 +63,13 @@ static const Segment SEG_CONFIGTEST[] = {
 };
 
 static const Profile PROFILES[] = {
-  { "glaze",      "Glaze",       5, SEG_GLAZE       },
-  { "bisque",     "Bisque",      2, SEG_BISQUE      },
-  { "irislustre", "Iris lustre", 3, SEG_IRISLUSTRE  },
-  { "heating",    "Heating",     1, SEG_HEATING     },
-  { "configtest", "Config Test", 2, SEG_CONFIGTEST  },
+  { "glaze",      "Glaze",        5, SEG_GLAZE        },
+  { "bisque",     "Bisque",       2, SEG_BISQUE       },
+  { "irislustre", "Iris lustre",  3, SEG_IRISLUSTRE   },
+  { "heating",    "Heating",      1, SEG_HEATING      },
+  { "heatinghot", "Heating Hot",  1, SEG_HEATINGHOT   },
+  { "dryingglaze","Drying Glaze", 1, SEG_DRYINGGLAZE  },
+  { "configtest", "Config Test",  2, SEG_CONFIGTEST   },
 };
 
 #define PROFILE_COUNT (sizeof(PROFILES) / sizeof(PROFILES[0]))
