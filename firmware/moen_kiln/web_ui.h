@@ -192,11 +192,12 @@ input:checked+.tsl:before{transform:translateX(16px);background:#fff}
 <details>
 <summary>⚙️ Settings</summary>
 <div style="margin-top:10px">
-<p class="shead">📧 Email (Resend)</p>
+<p class="shead">📧 Email (SMTP)</p>
 <input class="inp" id="eto" type="email" placeholder="To: asbjorn@moenmedia.no">
 <input class="inp" id="ecc" type="email" placeholder="CC (optional)">
-<input class="inp" id="efrom" type="email" placeholder="From: miln@your-domain.com">
-<input class="inp" id="ekey" type="password" placeholder="Resend API key (leave blank to keep existing)">
+<input class="inp" id="efrom" type="email" placeholder="From: app@moenadvisory.no">
+<input class="inp" id="euser" type="text" placeholder="SMTP username">
+<input class="inp" id="epass" type="password" placeholder="SMTP password (leave blank to keep existing)">
 <button class="go" style="width:100%" onclick="saveSet()">Save settings</button>
 <p class="shead" style="margin-top:14px">🌡️ Thermocouple gain</p>
 <p style="font-size:.78em;color:#888;margin:0 0 6px">Multiplicative calibration (corrected = raw × gain). Re-trim after a witness-cone check. Only editable when idle.</p>
@@ -393,12 +394,14 @@ fetch('/api/settings').then(function(r){return r.json();}).then(function(d){
   document.getElementById('eto').value=d.to||'';
   document.getElementById('ecc').value=d.cc||'';
   document.getElementById('efrom').value=d.from||'';
+  document.getElementById('euser').value=d.user||'';
 }).catch(function(){});
 function saveSet(){
   var b='to='+encodeURIComponent(document.getElementById('eto').value)
     +'&cc='+encodeURIComponent(document.getElementById('ecc').value)
     +'&from='+encodeURIComponent(document.getElementById('efrom').value)
-    +'&key='+encodeURIComponent(document.getElementById('ekey').value);
+    +'&user='+encodeURIComponent(document.getElementById('euser').value)
+    +'&pass='+encodeURIComponent(document.getElementById('epass').value);
   fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:b})
     .then(function(){alert('Saved!');});
 }

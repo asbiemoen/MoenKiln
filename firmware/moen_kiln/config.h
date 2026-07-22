@@ -81,7 +81,7 @@ struct Event { uint16_t sec; uint8_t type; uint16_t temp; };
 
 // ── EEPROM-layout ─────────────────────────────────────────────────────────────
 // E-post konfigurasjon
-#define EEPROM_API_KEY    32       // 50 bytes – Resend API-nøkkel
+#define EEPROM_SMTP_PASS  32       // 50 bytes – SMTP-passord (var Resend-nøkkel før #97)
 #define EEPROM_EMAIL_TO   82       // 50 bytes – mottaker
 #define EEPROM_EMAIL_CC   132      // 50 bytes – CC (valgfritt)
 #define EEPROM_EMAIL_FROM 182      // 50 bytes – avsender
@@ -114,7 +114,10 @@ struct Event { uint16_t sec; uint8_t type; uint16_t temp; };
 // Thermocouple gain calibration (runtime-configurable, #88)  0x47 = valid
 #define EEPROM_TCGAIN_FLAG      6354    // 1 byte : 0x47 = runtime gain stored
 #define EEPROM_TCGAIN_VAL       6355    // 4 bytes: float TC gain → ends at 6359
-// 6359 onwards: free  (8192 bytes total EEPROM)
+
+// SMTP-brukernavn (#97). Passordet ligger på EEPROM_SMTP_PASS i e-post-blokka.
+#define EEPROM_SMTP_USER        6359    // 50 bytes → ends at 6409
+// 6409 onwards: free  (8192 bytes total EEPROM)
 
 // Custom firing profiles (user-editable; default profiles are compile-time constants)  0x46 = valid
 #define MAX_CUSTOM_PROFILES    5

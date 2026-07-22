@@ -1,4 +1,5 @@
 // Moen Kiln – Arduino Uno R4 WiFi
+// 2026-07-22  Firing report over SMTP instead of Resend (#97)
 // 2026-07-21  Add built-in profiles: Heating Hot + Drying Glaze (#94)
 // 2026-07-01  Add built-in profiles: Iris lustre + Heating (#90)
 // 2026-06-30  Runtime-configurable TC gain via web UI, persisted in EEPROM (#88)
@@ -1198,27 +1199,30 @@ void handleHTTP() {
     httpOK(client, "application/json"); client.print(F("{\"ok\":true}"));
 
   } else if (req.startsWith("GET /api/settings")) {
-    char key[50]={0}, to[50]={0}, cc[50]={0}, frm[50]={0};
-    loadEmailConfig(key, to, cc, frm);
+    char usr[50]={0}, pwd[50]={0}, to[50]={0}, cc[50]={0}, frm[50]={0};
+    loadEmailConfig(usr, pwd, to, cc, frm);
     httpOK(client, "application/json");
     client.print(F("{\"to\":\""));   client.print(to);
     client.print(F("\",\"cc\":\""));  client.print(cc);
     client.print(F("\",\"from\":\"")); client.print(frm);
-    client.print(F("\",\"hasKey\":")); client.print(key[0] ? "true" : "false");
+    client.print(F("\",\"user\":\"")); client.print(usr);
+    client.print(F("\",\"hasPass\":")); client.print(pwd[0] ? "true" : "false");
     client.print('}');
 
   } else if (req.startsWith("POST /api/settings")) {
-    String newKey  = formParam(body, "key");
+    String newUser = formParam(body, "user");
+    String newPass = formParam(body, "pass");
     String newTo   = formParam(body, "to");
     String newCc   = formParam(body, "cc");
     String newFrom = formParam(body, "from");
-    char key[50]={0}, to[50]={0}, cc[50]={0}, frm[50]={0};
-    loadEmailConfig(key, to, cc, frm);
+    char usr[50]={0}, pwd[50]={0}, to[50]={0}, cc[50]={0}, frm[50]={0};
+    loadEmailConfig(usr, pwd, to, cc, frm);
     if (newTo.length())   strncpy(to,  newTo.c_str(),   49);
     if (newCc.length())   strncpy(cc,  newCc.c_str(),   49);
     if (newFrom.length()) strncpy(frm, newFrom.c_str(), 49);
-    if (newKey.length())  strncpy(key, newKey.c_str(),  49);
-    saveEmailConfig(key, to, cc, frm);
+    if (newUser.length()) strncpy(usr, newUser.c_str(), 49);
+    if (newPass.length()) strncpy(pwd, newPass.c_str(), 49);
+    saveEmailConfig(usr, pwd, to, cc, frm);
     httpOK(client, "application/json"); client.print(F("{\"ok\":true}"));
 
   } else if (req.startsWith("GET /api/tcgain")) {
