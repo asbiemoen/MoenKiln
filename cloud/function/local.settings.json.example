@@ -5,7 +5,11 @@
     "FUNCTIONS_WORKER_RUNTIME": "node",
     "DATABASE_URL": "postgresql://miln_app:password@moenadvisory-db.postgres.database.azure.com:6432/miln?sslmode=require",
     "KILN_API_KEY": "change-me-strong-random-key",
-    "RESEND_API_KEY": "re_xxxx",
+    "SMTP_HOST": "smtp.domeneshop.no",
+    "SMTP_PORT": "587",
+    "SMTP_USER": "change-me",
+    "SMTP_PASS": "change-me",
+    "MAIL_FROM": "Moen Kiln <app@moenadvisory.no>",
     "ALLOWED_EMAIL": "asbjorn@moenmedia.no",
     "MAGIC_LINK_BASE_URL": "https://milncloud.moenadvisory.no"
   }

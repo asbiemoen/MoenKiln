@@ -1,5 +1,6 @@
 const { app } = require('@azure/functions');
 const { getPool } = require('./db');
+const { sendMail } = require('./mailer');
 const crypto = require('crypto');
 
 app.http('auth-request', {
@@ -32,22 +33,13 @@ app.http('auth-request', {
     const link = `${process.env.MAGIC_LINK_BASE_URL}/dashboard.html?token=${token}`;
 
     try {
-      const res = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: 'MilnCloudLog <post@kirkepasset.no>',
-          to: email,
-          subject: 'Logg inn – MilnCloudLog',
-          html: `<p>Klikk lenken for å logge inn i MilnCloudLog:</p>
-                 <p><a href="${link}">${link}</a></p>
-                 <p>Lenken er gyldig i 24 timer.</p>`,
-        }),
+      await sendMail({
+        to: email,
+        subject: 'Logg inn – MilnCloudLog',
+        html: `<p>Klikk lenken for å logge inn i MilnCloudLog:</p>
+               <p><a href="${link}">${link}</a></p>
+               <p>Lenken er gyldig i 24 timer.</p>`,
       });
-      if (!res.ok) ctx.error('Resend error:', await res.text());
     } catch (err) {
       ctx.error('Email send:', err.message);
     }
