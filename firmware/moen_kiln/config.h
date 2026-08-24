@@ -122,6 +122,8 @@ struct Event { uint16_t sec; uint8_t type; uint16_t temp; };
 #define PROF_ID_LEN           15   // max chars for profile id (excl. null)
 #define PROF_NAME_LEN         15   // max chars for profile display name (excl. null)
 #define SEG_NAME_LEN          11   // max chars for segment name (excl. null)
+#define SEG_TEMP_MIN_C        20   // lowest allowed segment target temp (°C)
+#define SEG_TEMP_MAX_C      1400   // highest allowed segment target temp (°C)
 
 // StoredSegment: 18 bytes  |  StoredProfile: 1 + (PROF_ID_LEN+1) + (PROF_NAME_LEN+1) + 8*18 = 177 bytes
 // 5 profiles × 177 = 885 bytes → block ends at 5464 + 2 + 885 = 6351

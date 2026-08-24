@@ -547,7 +547,7 @@ function validateEditor(){
       var s=p.segments[si];
       if(typeof s.name!=='string'||!s.name.trim()){ setErr(ta,errEl,'Segment '+(si+1)+' missing name'); setSaveBtn(false); return null; }
       if(s.name.length>11){ setErr(ta,errEl,'Segment name too long (max 11 chars)'); setSaveBtn(false); return null; }
-      if(typeof s.targetTemp!=='number'||s.targetTemp<100||s.targetTemp>1400){ setErr(ta,errEl,'Segment '+(si+1)+': targetTemp must be 100–1400'); setSaveBtn(false); return null; }
+      if(typeof s.targetTemp!=='number'||s.targetTemp<20||s.targetTemp>1400){ setErr(ta,errEl,'Segment '+(si+1)+': targetTemp must be 20–1400'); setSaveBtn(false); return null; }
       if(typeof s.ratePerHour!=='number'||s.ratePerHour<0||s.ratePerHour>9999){ setErr(ta,errEl,'Segment '+(si+1)+': ratePerHour must be 0–9999'); setSaveBtn(false); return null; }
       if(typeof s.holdMin!=='number'||s.holdMin<0||s.holdMin>999){ setErr(ta,errEl,'Segment '+(si+1)+': holdMin must be 0–999'); setSaveBtn(false); return null; }
     }

@@ -232,7 +232,7 @@ const char* parseAndSaveCustomProfiles(const char* json) {
               p = readStr(p, seg.name, SEG_NAME_LEN); if (!p) return "Bad segment name";
             } else if (strcmp(sk, "targetTemp") == 0) {
               p = readInt(p, v); if (!p) return "Bad targetTemp";
-              if (v < 100 || v > 1400) return "targetTemp out of range (100-1400)";
+              if (v < SEG_TEMP_MIN_C || v > SEG_TEMP_MAX_C) return "targetTemp out of range (20-1400)";
               seg.targetTemp = (uint16_t)v;
             } else if (strcmp(sk, "ratePerHour") == 0) {
               p = readInt(p, v); if (!p) return "Bad ratePerHour";
